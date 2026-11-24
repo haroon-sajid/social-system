@@ -7,15 +7,24 @@ JOB = "$('Start Publish').first().json"
 RETRY = {"retryOnFail": True, "maxTries": 3, "waitBetweenTries": 4000}
 
 READ_ERR = r"""
+// Turns an HTTP error into one readable sentence, for example "Version not found" or Meta's error_user_msg.
+// n8n wraps API errors as: 400 - "{\"message\":\"...\"}", so unwrap that first.
 function readErr(raw) {
   const e = raw?.error ?? raw ?? {};
-  if (typeof e === 'string') return e;
-  let detail = e.description;
-  try {
-    const j = typeof detail === 'string' ? JSON.parse(detail) : detail;
-    detail = j?.error?.error_user_msg || j?.error?.message || j?.message || j?.error_description || detail;
-  } catch (_) {}
-  return [detail, e.message].filter(Boolean).join(' | ').slice(0, 1500) || 'Unknown error';
+  if (typeof e === 'string') return e.slice(0, 1500);
+  const pick = (v) => {
+    if (!v) return null;
+    let j = v;
+    if (typeof v === 'string') {
+      let s = v;
+      const m = v.match(/^\d{3} - ("[\s\S]*")$/);
+      if (m) { try { s = JSON.parse(m[1]); } catch (_) {} }
+      try { j = JSON.parse(s); } catch (_) { return s; }
+    }
+    const msg = j?.error?.error_user_msg || j?.error?.message || j?.message || j?.error_description || j?.error;
+    return typeof msg === 'string' ? msg : null;
+  };
+  return (pick(e.description) || pick(e.message) || 'Unknown error').slice(0, 1500);
 }
 """
 
