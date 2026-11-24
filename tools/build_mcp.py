@@ -25,9 +25,10 @@ def mcp_path():
 MCP_PATH = mcp_path()
 w = WF("Social 0 - MCP Server (Claude)")
 
-# Header auth: Claude's connector sends x-social-hub-key with every request (credential "Claude MCP Key")
-w.add("MCP Server", *T_MCP, {"authentication": "headerAuth", "path": MCP_PATH}, (600, 0),
-      creds=("httpHeaderAuth", "Claude MCP Key"), extra={"webhookId": MCP_PATH})
+# Bearer auth: Claude's connector sends "Authorization: Bearer <key>" (credential "Claude MCP Bearer").
+# Claude only allows approved header names, and Authorization is one of them.
+w.add("MCP Server", *T_MCP, {"authentication": "bearerAuth", "path": MCP_PATH}, (600, 0),
+      creds=("httpBearerAuth", "Claude MCP Bearer"), extra={"webhookId": MCP_PATH})
 
 
 def tool(name, desc, params, pos):
@@ -106,7 +107,7 @@ w.add("Note", *T_STICKY, {"content": (
     "Claude can read rules, create and edit DRAFTS, and read analytics.\n"
     "Claude can NOT publish. Publishing only happens from the dashboard.\n\n"
     "Connect in Claude: Settings > Connectors > Add custom connector > paste the Production URL of the MCP Server node,\n"
-    "choose No sign-in, and add the request header x-social-hub-key (value from the Claude MCP Key credential).\n"
+    "choose No sign-in, and add the request header Authorization: Bearer <key> (key from the Claude MCP Bearer credential).\n"
     "Keep the URL and the key private."), "height": 260, "width": 500}, (0, -280))
 
 w.dump("social-0-mcp-server.json")
