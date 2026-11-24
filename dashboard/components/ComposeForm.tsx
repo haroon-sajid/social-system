@@ -284,7 +284,9 @@ export default function ComposeForm({ groups, rules, accounts, prefill }: {
         description="Fill in the details once. Each platform gets its own version with a live preview."
         actions={
           <>
-            <Link href="/settings?tab=claude" className="btn-secondary"><Icon name="sparkles" size={15} className="text-clay-500" /> Let Claude fill this</Link>
+            <Link href={`/claude${title.trim() || text.trim() ? `?topic=${encodeURIComponent((title.trim() || text.trim()).slice(0, 500))}` : ""}`} className="btn-secondary">
+              <Icon name="sparkles" size={15} className="text-clay-500" /> Draft with Claude
+            </Link>
             <button className="btn-primary" onClick={submit} disabled={!!busy}><Icon name="check" size={15} strokeWidth={2.2} /> {createLabel}</button>
           </>
         }

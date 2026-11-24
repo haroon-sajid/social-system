@@ -49,6 +49,23 @@ export async function insertVariants(rows: {
   } catch (e) { return fail(e); }
 }
 
+// ---------- Draft with Claude: drafts Claude saved through the connector since a moment ----------
+export async function recentClaudeDrafts(sinceIso: string): Promise<
+  { ok: true; posts: { id: string; title: string | null; master_text: string; created_at: string; post_variants: { id: string; platform: Platform }[] }[] }
+  | { ok: false; error: string }> {
+  try {
+    const supabase = await db();
+    const since = new Date(sinceIso);
+    if (Number.isNaN(since.getTime())) return { ok: false, error: "Bad time" };
+    const { data, error } = await supabase.from("posts")
+      .select("id,title,master_text,created_at,post_variants(id,platform)")
+      .eq("source", "claude").gte("created_at", since.toISOString())
+      .order("created_at", { ascending: false }).limit(10);
+    if (error) throw error;
+    return { ok: true, posts: (data ?? []) as { id: string; title: string | null; master_text: string; created_at: string; post_variants: { id: string; platform: Platform }[] }[] };
+  } catch (e) { return fail(e); }
+}
+
 // ---------- media ----------
 // The browser uploads the file straight to Supabase Storage with a one-time signed URL made here,
 // so big files never pass through the server and no login is needed in the browser.

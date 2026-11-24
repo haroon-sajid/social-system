@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Icon, PlatformIcon } from "@/components/icons";
 import { PageHeader } from "@/components/ui";
+import LiveRefresh from "@/components/LiveRefresh";
 import { STATUS_DOT, fmtDate, platformLabel, type Platform, type VariantStatus } from "@/lib/platforms";
 
 export const dynamic = "force-dynamic";
@@ -133,12 +134,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
+      <LiveRefresh seconds={30} />
       <PageHeader
         title={<>{greet}, <strong>{name}!</strong></>}
         description={`Track how your posts perform and plan what to share next.${draftsQ.count ? ` You have ${draftsQ.count} draft version${draftsQ.count === 1 ? "" : "s"} waiting.` : ""}`}
         actions={
           <>
             <Link href="/posts?status=draft" className="btn-secondary"><Icon name="file" size={15} /> Drafts</Link>
+            <Link href="/claude" className="btn-ai"><Icon name="sparkles" size={15} /> Draft with Claude</Link>
             <Link href="/compose" className="btn-primary"><Icon name="plus" size={15} strokeWidth={2.2} /> New post</Link>
           </>
         }

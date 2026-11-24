@@ -9,6 +9,7 @@ const MENU: Item[] = [
   { href: "/", label: "Overview", icon: "grid" },
   { href: "/posts", label: "Posts", icon: "posts" },
   { href: "/compose", label: "Compose", icon: "compose" },
+  { href: "/claude", label: "Draft with Claude", icon: "sparkles" },
   { href: "/calendar", label: "Calendar", icon: "calendar" },
   { href: "/analytics", label: "Analytics", icon: "analytics" },
   { href: "/insights", label: "Insights", icon: "insights" },
@@ -91,8 +92,8 @@ export default function Sidebar({ open, onClose, authDisabled, attention, who, a
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-brand-600 ring-1 ring-brand-100"><Icon name="sparkles" size={13} /></span>
               Let Claude draft for you
             </div>
-            <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-500">Your Claude agent can fill in every field of a post through the API.</p>
-            <Link href="/settings?tab=claude" className="btn-primary btn-sm mt-2.5 w-full py-2"><Icon name="code" size={13} /> Connect Claude</Link>
+            <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-500">Describe a post once. Claude writes every platform version and saves the drafts here.</p>
+            <Link href="/claude" className="btn-ai btn-sm mt-2.5 w-full py-2"><Icon name="sparkles" size={13} /> Draft with Claude</Link>
           </div>
 
           <div className="flex items-center gap-2.5 px-1">

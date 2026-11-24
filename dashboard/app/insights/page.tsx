@@ -43,9 +43,14 @@ function IdeaCard({ s }: { s: Suggestion }) {
       </div>
       <p className="text-sm text-slate-600">{s.why}</p>
       <div className="flex-1 rounded-lg bg-slate-50 p-3 text-sm leading-relaxed whitespace-pre-wrap text-slate-800 ring-1 ring-inset ring-slate-200">{s.example_post}</div>
-      <Link className="btn-secondary self-start" href={`/compose?text=${encodeURIComponent(s.example_post)}&type=${encodeURIComponent(s.content_type ?? "")}`}>
-        <Icon name="compose" size={15} /> Use this idea
-      </Link>
+      <div className="flex flex-wrap gap-2">
+        <Link className="btn-ai" href={`/claude?topic=${encodeURIComponent(`${s.title}. ${s.why}`.slice(0, 1500))}&type=${encodeURIComponent(s.content_type ?? "")}${p ? `&platforms=${p}` : ""}`}>
+          <Icon name="sparkles" size={15} /> Draft with Claude
+        </Link>
+        <Link className="btn-secondary" href={`/compose?text=${encodeURIComponent(s.example_post)}&type=${encodeURIComponent(s.content_type ?? "")}`}>
+          <Icon name="compose" size={15} /> Use this idea
+        </Link>
+      </div>
     </div>
   );
 }

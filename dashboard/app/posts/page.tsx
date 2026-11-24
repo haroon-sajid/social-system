@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Icon, PlatformIcon } from "@/components/icons";
 import { Callout, EmptyState, PageHeader } from "@/components/ui";
+import LiveRefresh from "@/components/LiveRefresh";
 import {
   STATUS_DOT, STATUS_LABEL, contentTypeLabel, fmtDate, platformLabel, type Platform, type VariantStatus,
 } from "@/lib/platforms";
@@ -54,8 +55,15 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
       <PageHeader
         title={<>All your <strong>posts</strong></>}
         description="Every post and where it stands on each platform. Drafts from Claude land here automatically."
-        actions={<Link href="/compose" className="btn-primary"><Icon name="plus" size={15} strokeWidth={2.2} /> New post</Link>}
+        actions={
+          <>
+            <Link href="/claude" className="btn-ai"><Icon name="sparkles" size={15} /> Draft with Claude</Link>
+            <Link href="/compose" className="btn-primary"><Icon name="plus" size={15} strokeWidth={2.2} /> New post</Link>
+          </>
+        }
       />
+      {/* New drafts (for example from Claude) appear without a reload */}
+      <LiveRefresh seconds={15} />
 
       {error && <Callout tone="danger" title="Could not load posts" className="mb-5">{error.message}</Callout>}
 
