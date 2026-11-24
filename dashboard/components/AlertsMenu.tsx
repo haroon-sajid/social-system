@@ -41,7 +41,7 @@ export default function AlertsMenu({ alerts, placement = "below" }: { alerts: Al
                 <li key={a.id} className="flex gap-3 px-4 py-3 text-[13px]">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{a.platform}</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{a.platform.split(":")[0]}</div>
                     <p className="mt-0.5 break-words text-slate-700">{a.message}</p>
                     <button type="button" disabled={pending} onClick={() => start(async () => { await dismissAlert(a.id); })}
                       className="mt-1.5 text-xs font-medium text-brand-700 hover:underline disabled:opacity-50">Dismiss</button>

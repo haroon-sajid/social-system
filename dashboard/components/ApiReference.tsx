@@ -52,6 +52,7 @@ const FIELDS: [string, string][] = [
   ["Title", "title"], ["Main text", "master_text"], ["Topic", "topic"], ["Content type", "content_type"],
   ["Internal tags", "tags[]"], ["Media", "media[]"], ["Platforms", "variants[].platform"], ["Platform text", "variants[].body"],
   ["Hashtags", "variants[].hashtags[]"], ["Link", "variants[].link_url"], ["Reddit title", "variants[].title"], ["Groups", "variants[].group_target_ids[]"],
+  ["Facebook Pages", "variants[].account_ids[]"],
 ];
 
 const METHOD_STYLE: Record<Method, string> = {

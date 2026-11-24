@@ -4,6 +4,7 @@ import ClaudeDraft, { type Draft } from "@/components/ClaudeDraft";
 import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/ui";
 import { PLATFORMS, type GroupTarget, type Platform } from "@/lib/platforms";
+import { localClaudeStatus } from "@/lib/claude-local";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Draft with Claude" };
@@ -11,8 +12,9 @@ export const metadata = { title: "Draft with Claude" };
 export default async function ClaudePage({ searchParams }: { searchParams: Promise<{ topic?: string; type?: string; platforms?: string }> }) {
   const sp = await searchParams;
   const supabase = await createClient();
-  const [{ data: groups }, { data: recent }] = await Promise.all([
+  const [{ data: groups }, { data: fbPages }, { data: recent }] = await Promise.all([
     supabase.from("group_targets").select("*").eq("is_active", true).order("name"),
+    supabase.from("accounts").select("id,display_name").eq("platform", "facebook").eq("is_active", true).order("created_at"),
     supabase.from("posts").select("id,title,master_text,created_at,post_variants(id,platform)")
       .eq("source", "claude").order("created_at", { ascending: false }).limit(4),
   ]);
@@ -31,7 +33,7 @@ export default async function ClaudePage({ searchParams }: { searchParams: Promi
           </>
         }
       />
-      <ClaudeDraft groups={(groups ?? []) as GroupTarget[]} recent={(recent ?? []) as Draft[]}
+      <ClaudeDraft groups={(groups ?? []) as GroupTarget[]} fbPages={fbPages ?? []} recent={(recent ?? []) as Draft[]} local={localClaudeStatus()}
         prefill={{ topic: (sp.topic ?? "").slice(0, 2000), type: sp.type ?? "", platforms }} />
     </>
   );

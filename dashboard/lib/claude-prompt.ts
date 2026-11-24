@@ -1,12 +1,13 @@
 // Builds the message sent to the Claude app. It tells Claude exactly how to use the Social Hub connector
 // tools (get_platform_rules, create_draft, update_variant) so the drafts land in the dashboard correctly.
-import { platformLabel, type GroupTarget, type Platform } from "@/lib/platforms";
+import { platformLabel, type Account, type GroupTarget, type Platform } from "@/lib/platforms";
 
 export type ClaudeRequest = {
   topic: string;
   details: string;
   platforms: Platform[];
   targets: GroupTarget[];
+  pages: Pick<Account, "id" | "display_name">[]; // Facebook Pages picked (only when there is more than one)
   contentType: string; // "auto" or one of CONTENT_TYPES
   tone: string;        // "rules" or a tone name
   language: string;
@@ -37,6 +38,9 @@ export function buildClaudePrompt(r: ClaudeRequest) {
       "Put hashtags only in each variant's hashtags array, without # and not inside body." +
       (r.link ? " Use the link as link_url on the platforms where links are allowed." : "") +
       (r.targets.length ? " Use the group_target_ids listed below for the Facebook Group and Reddit variants." : "") +
+      (r.pages.length && r.platforms.includes("facebook")
+        ? ` Write ONE facebook variant and set its account_ids to ${JSON.stringify(r.pages.map((p) => p.id))} (the Facebook Pages listed below); a copy is saved for each Page.`
+        : "") +
       (r.image && mime ? ` Add media: [{"public_url": "${r.image}", "mime_type": "${mime}"}].` : ""),
     "If any variant comes back with errors, fix it with update_variant until no errors are left." +
       (okErrors.length ? ` Leave ${okErrors.join(" and ")} as they are: I will handle ${okErrors.length > 1 ? "those" : "that"} in the dashboard.` : ""),
@@ -47,6 +51,7 @@ export function buildClaudePrompt(r: ClaudeRequest) {
     `Topic: ${r.topic.trim()}`,
     r.details.trim() && `Details to include: ${r.details.trim()}`,
     `Platforms: ${names}`,
+    ...(r.platforms.includes("facebook") ? r.pages.map((p) => `Facebook Page: ${p.display_name} (account_id ${p.id})`) : []),
     ...r.targets.map((g) => g.platform === "reddit"
       ? `Reddit: r/${g.subreddit} (group_target_id ${g.id})${g.rules_notes ? `. Subreddit rules: ${g.rules_notes}` : ""}${g.flair ? `. Flair: ${g.flair}` : ""}`
       : `Facebook Group: ${g.name} (group_target_id ${g.id})${g.rules_notes ? `. Group rules: ${g.rules_notes}` : ""}`),
@@ -68,10 +73,11 @@ export function buildClaudePrompt(r: ClaudeRequest) {
 }
 
 // Plain-language version of the steps, shown in the dashboard
-export function promptSummary(r: Pick<ClaudeRequest, "platforms" | "targets" | "image" | "link">) {
+export function promptSummary(r: Pick<ClaudeRequest, "platforms" | "targets" | "pages" | "image" | "link">) {
   return [
     "Reads your platform rules (limits, tone, format notes)",
     `Writes ${r.platforms.length} version${r.platforms.length === 1 ? "" : "s"}, one per platform, each fitted to its platform`,
+    r.platforms.includes("facebook") && r.pages.length ? `Saves the Facebook version for ${r.pages.map((p) => p.display_name).join(" and ")}` : null,
     r.targets.length ? `Uses your saved ${r.targets.length === 1 ? "group or subreddit" : "groups and subreddits"} and their rules` : null,
     r.link ? "Adds your link where links work" : null,
     r.image ? "Attaches your image" : null,

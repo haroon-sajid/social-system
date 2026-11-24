@@ -10,8 +10,8 @@ import {
   updatePostText,
 } from "@/app/actions";
 import {
-  MODE_HINT, PLATFORMS, STATUS_DOT, STATUS_LABEL, charCount, composeFull, contentTypeLabel, fmtDate, isStuck, manualUrl,
-  platformLabel, platformMode, validate,
+  MODE_HINT, PLATFORMS, STATUS_DOT, STATUS_LABEL, accountOf, charCount, composeFull, contentTypeLabel, fmtDate, isStuck, manualUrl,
+  pageName, platformLabel, platformMode, validate,
   type Account, type GroupTarget, type Media, type Platform, type Rule, type Variant,
 } from "@/lib/platforms";
 
@@ -39,6 +39,7 @@ export default function PostEditor(props: {
   const [adding, setAdding] = useState(false);
   const [newPlatform, setNewPlatform] = useState<Platform>("facebook");
   const [newTarget, setNewTarget] = useState<string>("");
+  const [newPage, setNewPage] = useState<string>("");
   const [editMaster, setEditMaster] = useState(false);
   const [showMaster, setShowMaster] = useState(false);
   const [master, setMaster] = useState(props.post.master_text);
@@ -83,18 +84,29 @@ export default function PostEditor(props: {
     });
 
   const apiReady = props.variants.filter((v) => platformMode(v.platform) === "api" && ["draft", "failed"].includes(v.status)
-    && validate(v, ruleOf(v.platform), media).length === 0);
+    && validate(v, ruleOf(v.platform), media, props.accounts).length === 0);
   const unsaved = props.variants.some((v) => dirty[v.id]);
+  // "Facebook Page (My Page)" when there is more than one Page
+  const labelOf = (v: Variant) => {
+    const page = pageName(v, props.accounts);
+    return page ? `${platformLabel(v.platform)} (${page})` : platformLabel(v.platform);
+  };
+
+  // Facebook Pages for "Add platform": the first Page this post has no version for is picked to start with
+  const fbPages = props.accounts.filter((a) => a.platform === "facebook" && a.is_active);
+  const freePage = fbPages.find((a) => !props.variants.some((v) => v.platform === "facebook" && v.account_id === a.id));
+  const addPage = newPage || freePage?.id || fbPages[0]?.id || "";
 
   // Publish all ready API versions in parallel (one server call), then show one line per platform
   async function publishAll() {
     if (unsaved) return setFlash({ ok: false, text: "Some versions have unsaved changes. Click Save changes on them first." });
-    if (!confirm(`Publish ${apiReady.length} version(s) now: ${apiReady.map((v) => platformLabel(v.platform)).join(", ")}?`)) return;
+    if (!confirm(`Publish ${apiReady.length} version(s) now: ${apiReady.map(labelOf).join(", ")}?`)) return;
     setPublishingAll(true);
     try {
       const results = await publishMany(apiReady.map((v) => v.id));
       const lines = results.map(({ id, result }) => {
-        const label = platformLabel(apiReady.find((v) => v.id === id)?.platform ?? "facebook");
+        const v = apiReady.find((x) => x.id === id);
+        const label = v ? labelOf(v) : "Version";
         return `${label}: ${result.ok ? result.message ?? "Published." : result.error}`;
       });
       setFlash({ ok: results.every((r) => r.result.ok), text: lines.join("\n") });
@@ -260,8 +272,8 @@ export default function PostEditor(props: {
         <div role="tablist" aria-label="Platform versions" className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-xl bg-slate-200/60 p-1">
           {props.variants.map((v) => {
             const on = v.id === activeId;
-            const errs = EDITABLE.includes(v.status) ? validate(v, ruleOf(v.platform), media).length : 0;
-            const tgt = targetName(props.groups.find((g) => g.id === v.group_target_id));
+            const errs = EDITABLE.includes(v.status) ? validate(v, ruleOf(v.platform), media, props.accounts).length : 0;
+            const tgt = targetName(props.groups.find((g) => g.id === v.group_target_id)) ?? pageName(v, props.accounts);
             return (
               <button key={v.id} role="tab" aria-selected={on} onClick={() => setActive(v.id)}
                 className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${on ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-600 hover:bg-white/70 hover:text-slate-900"}`}>
@@ -286,10 +298,18 @@ export default function PostEditor(props: {
           <div>
             <label className="label" htmlFor="new-platform">Platform</label>
             <select id="new-platform" className="input w-auto" value={newPlatform}
-              onChange={(e) => { setNewPlatform(e.target.value as Platform); setNewTarget(""); }}>
+              onChange={(e) => { setNewPlatform(e.target.value as Platform); setNewTarget(""); setNewPage(""); }}>
               {PLATFORMS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
             </select>
           </div>
+          {newPlatform === "facebook" && fbPages.length > 1 && (
+            <div>
+              <label className="label" htmlFor="new-page">Facebook Page</label>
+              <select id="new-page" className="input w-auto" value={addPage} onChange={(e) => setNewPage(e.target.value)}>
+                {fbPages.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
+              </select>
+            </div>
+          )}
           {(newPlatform === "reddit" || newPlatform === "facebook_group") && (
             <div>
               <label className="label" htmlFor="new-target">{newPlatform === "reddit" ? "Subreddit" : "Group"}</label>
@@ -303,7 +323,11 @@ export default function PostEditor(props: {
           <div className="flex gap-2">
             <button className="btn-ghost" onClick={() => setAdding(false)}>Cancel</button>
             <button className="btn-primary" disabled={pending}
-              onClick={() => run(async () => { const r = await addVariant(props.post.id, newPlatform, newTarget || null); if (r.ok) setAdding(false); return r; })}>
+              onClick={() => run(async () => {
+                const r = await addVariant(props.post.id, newPlatform, newTarget || null, newPlatform === "facebook" ? addPage || null : null);
+                if (r.ok) { setAdding(false); setNewPage(""); }
+                return r;
+              })}>
               Add version
             </button>
           </div>
@@ -347,15 +371,16 @@ function VariantCard({ v, hidden, rule, media, groups, accounts, logs, pending, 
   const [link, setLink] = useState(v.link_url ?? "");
   const [title, setTitle] = useState(v.title ?? "");
   const [target, setTarget] = useState(v.group_target_id ?? "");
+  const [accountId, setAccountId] = useState(v.account_id ?? "");
   const [mediaIds, setMediaIds] = useState<string[]>(v.media_ids);
   const [postUrl, setPostUrl] = useState("");
   const [copied, setCopied] = useState(false);
 
   // Reset local edits only when the saved server values change (not on every auto refresh)
-  const serverSig = JSON.stringify([v.body, v.hashtags, v.link_url, v.title, v.group_target_id, v.media_ids]);
+  const serverSig = JSON.stringify([v.body, v.hashtags, v.link_url, v.title, v.group_target_id, v.account_id, v.media_ids]);
   useEffect(() => {
     setBody(v.body); setTags(v.hashtags.join(" ")); setLink(v.link_url ?? ""); setTitle(v.title ?? "");
-    setTarget(v.group_target_id ?? ""); setMediaIds(v.media_ids);
+    setTarget(v.group_target_id ?? ""); setAccountId(v.account_id ?? ""); setMediaIds(v.media_ids);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverSig]);
 
@@ -363,15 +388,20 @@ function VariantCard({ v, hidden, rule, media, groups, accounts, logs, pending, 
   const editable = EDITABLE.includes(v.status);
   const local: Variant = useMemo(() => ({
     ...v, body, hashtags: parseTags(tags), link_url: link || null, title: title || null,
-    group_target_id: target || null, media_ids: mediaIds,
-  }), [v, body, tags, link, title, target, mediaIds]);
-  const errors = validate(local, rule, media);
+    group_target_id: target || null, account_id: accountId || null, media_ids: mediaIds,
+  }), [v, body, tags, link, title, target, accountId, mediaIds]);
+  const errors = validate(local, rule, media, accounts);
   const finalText = composeFull(v.platform, body, local.hashtags, local.link_url);
   const count = charCount(v.platform, finalText);
   const dirty = body !== v.body || tags !== v.hashtags.join(" ") || link !== (v.link_url ?? "") ||
-    title !== (v.title ?? "") || target !== (v.group_target_id ?? "") || mediaIds.join() !== v.media_ids.join();
+    title !== (v.title ?? "") || target !== (v.group_target_id ?? "") || accountId !== (v.account_id ?? "") ||
+    mediaIds.join() !== v.media_ids.join();
   const tgt = groups.find((g) => g.id === (target || v.group_target_id));
-  const account = accounts.find((a) => a.platform === (v.platform === "facebook_group" ? "facebook" : v.platform));
+  const account = accountOf(local, accounts);
+  // Facebook: choose the Page when there is more than one (or when its Page was switched off)
+  const fbPages = accounts.filter((a) => a.platform === "facebook" && a.is_active);
+  const pickPage = v.platform === "facebook" && (fbPages.length > 1 || (!!accountId && !account));
+  const page = pageName(local, accounts);
   const vMedia = media.filter((m) => mediaIds.includes(m.id));
   const lastError = v.last_error || logs.find((l) => l.outcome === "error")?.error;
   const stuck = isStuck(v);
@@ -382,6 +412,7 @@ function VariantCard({ v, hidden, rule, media, groups, accounts, logs, pending, 
   const save = () => saveVariant(v.id, {
     body, hashtags: parseTags(tags), link_url: link || null, title: title || null,
     group_target_id: target || null, media_ids: mediaIds,
+    ...(v.platform === "facebook" ? { account_id: accountId || null } : {}),
   });
   const saveThen = (next: () => Promise<RunResult>) => async () => {
     if (dirty) { const r = await save(); if (!r.ok) return r; }
@@ -414,7 +445,7 @@ function VariantCard({ v, hidden, rule, media, groups, accounts, logs, pending, 
             {stuck && <span className="text-xs font-medium text-amber-700">stuck</span>}
           </div>
           <p className="truncate text-xs text-slate-500">
-            {MODE_HINT[mode]}{targetName(tgt) ? ` · ${targetName(tgt)}` : ""}
+            {MODE_HINT[mode]}{targetName(tgt) ? ` · ${targetName(tgt)}` : ""}{page ? ` · ${page}` : ""}
             {v.status === "published" && v.published_at ? ` · Published ${fmtDate(v.published_at)}` : ""}
           </p>
         </div>
@@ -454,6 +485,16 @@ function VariantCard({ v, hidden, rule, media, groups, accounts, logs, pending, 
                 placeholder={v.platform === "instagram" ? "Not clickable on Instagram" : "https://"} />
             </div>
           </div>
+          {pickPage && (
+            <div>
+              <label className="label" htmlFor={`${idBase}-page`}>Facebook Page</label>
+              <select id={`${idBase}-page`} className="input" disabled={!editable} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                <option value="">Choose a Page</option>
+                {fbPages.map((a) => <option key={a.id} value={a.id}>{a.display_name}</option>)}
+              </select>
+              <p className="hint">Posted with this Page&apos;s own token. Add the other Page as another version with Add platform.</p>
+            </div>
+          )}
           {(v.platform === "reddit" || v.platform === "facebook_group") && (
             <div>
               <label className="label" htmlFor={`${idBase}-target`}>{v.platform === "reddit" ? "Subreddit" : "Group"}</label>

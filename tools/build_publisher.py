@@ -45,12 +45,17 @@ w.add("Reply Not Started", "n8n-nodes-base.respondToWebhook", 1.1,
 w.add("Route Platform", *T_SWITCH,
       switch_params("={{ $json.platform }}", ["facebook", "instagram", "threads", "linkedin"], fallback=False), (440, 300))
 
-# 2. Facebook Page: one call (photo or text)
-w.add("Facebook Post", *T_HTTP, http(
-    f"={GRAPH}/{{{{ $json.account_id }}}}/{{{{ $json.image_url ? 'photos' : 'feed' }}}}", "POST",
-    "={{ JSON.stringify($json.image_url ? { url: $json.image_url, message: $json.text } "
-    ": Object.assign({ message: $json.text }, $json.link_url ? { link: $json.link_url } : {})) }}",
-    creds=CRED_META), (700, 0), creds=CRED_META, on_error="continueErrorOutput")
+# 2. Facebook Page: one call (photo or text), sent with the token of the Page this version goes to.
+#    start_publish returns that token's credential name; each name has its own node.
+w.add("Facebook Token", *T_SWITCH,
+      switch_params("={{ $json.token }}", [name for name, _, _ in FB_TOKENS], fallback=False), (700, -40))
+FB_POSTS = []
+for i, (name, cred, suffix) in enumerate(FB_TOKENS):
+    FB_POSTS.append(w.add(f"Facebook Post{suffix}", *T_HTTP, http(
+        f"={GRAPH}/{{{{ $json.account_id }}}}/{{{{ $json.image_url ? 'photos' : 'feed' }}}}", "POST",
+        "={{ JSON.stringify($json.image_url ? { url: $json.image_url, message: $json.text } "
+        ": Object.assign({ message: $json.text }, $json.link_url ? { link: $json.link_url } : {})) }}",
+        creds=cred), (920, -120 + 140 * i), creds=cred, on_error="continueErrorOutput"))
 
 # 3. Instagram: create container, short wait, publish (retries if not ready)
 w.add("Instagram Create", *T_HTTP, http(
@@ -127,8 +132,10 @@ return [{ json: { variant_id: job.variant_id, success: true, platform_post_id: i
 """), (1800, 200))
 w.add("Build Error", *T_CODE, code(READ_ERR + r"""
 const job = $('Start Publish').first().json;
+// With two Facebook Pages, say which Page failed
+const who = job.platform === 'facebook' && job.account_name ? `facebook (${job.account_name})` : job.platform;
 return [{ json: { variant_id: job.variant_id, success: false, platform_post_id: null, url: null,
-  error: `${job.platform}: ${readErr($input.first().json)}` } }];
+  error: `${who}: ${readErr($input.first().json)}` } }];
 """), (1800, 450))
 w.add("Save Result", *T_HTTP, rpc("finish_publish",
       "={{ JSON.stringify({ p_variant_id: $json.variant_id, p_success: $json.success, "
@@ -147,7 +154,9 @@ w.link("Publish Webhook", "Start Publish")
 w.link("Start Publish", "Route Platform", 0)
 w.link("Start Publish", "Start Failed", 1)
 w.link("Start Failed", "Reply Not Started")
-w.link("Route Platform", "Facebook Post", 0)
+w.link("Route Platform", "Facebook Token", 0)
+for i, n in enumerate(FB_POSTS):
+    w.link("Facebook Token", n, i)
 w.link("Route Platform", "Instagram Create", 1)
 w.link("Route Platform", "Threads Create", 2)
 w.link("Route Platform", "LinkedIn Has Image?", 3)
@@ -162,9 +171,9 @@ w.link("LinkedIn Get Image", "LinkedIn Upload Image", 0)
 w.link("LinkedIn Upload Image", "LinkedIn Post", 0)
 w.link("Instagram Publish", "Instagram Link", 0)
 w.link("Threads Publish", "Threads Link", 0)
-for n in ("Facebook Post", "Instagram Link", "Threads Link", "LinkedIn Post"):
+for n in (*FB_POSTS, "Instagram Link", "Threads Link", "LinkedIn Post"):
     w.link(n, "Success", 0)
-for n in ("Facebook Post", "Instagram Create", "Instagram Publish", "Threads Create", "Threads Publish",
+for n in (*FB_POSTS, "Instagram Create", "Instagram Publish", "Threads Create", "Threads Publish",
           "LinkedIn Init Upload", "LinkedIn Get Image", "LinkedIn Upload Image", "LinkedIn Post"):
     w.link(n, "Build Error", 1)
 w.link("Success", "Save Result")
@@ -175,7 +184,9 @@ w.add("Note", *T_STICKY, {"content": (
     "## One Click Publish\n"
     "The dashboard sends one version id. Supabase checks it, locks it (no double posts) and returns the ready text.\n"
     "This workflow posts it and replies with the link or the exact error.\n"
-    "Supports text plus 1 image. Videos are posted by hand."), "height": 200, "width": 420}, (-40, -40))
+    "Supports text plus 1 image. Videos are posted by hand.\n"
+    "Facebook: each Page uses its own token (Meta Page Token or Meta Page Token 2), set per Page in Settings."),
+    "height": 240, "width": 420}, (-40, -80))
 
 w.dump("social-1-one-click-publish.json",
        {"executionOrder": "v1", "timezone": "Asia/Karachi",

@@ -10,7 +10,7 @@ Supabase project: `qpmsrznvleogzjnovsmw` (database is already built and tested)
 | --- | --- | --- |
 | Claude | Claude app (custom connector) | Reads platform rules, writes drafts, reads analytics. Cannot publish. |
 | Social 0 MCP Server | n8n | Connects Claude to the database |
-| Social 1 One Click Publish | n8n webhook, runs only when you click | Posts one version to Facebook Page, Instagram, Threads or LinkedIn (text plus 1 image) and returns the post link |
+| Social 1 One Click Publish | n8n webhook, runs only when you click | Posts one version to a Facebook Page (up to two Pages, each with its own token), Instagram, Threads or LinkedIn (text plus 1 image) and returns the post link |
 | Social 2 Analytics and Tokens | n8n, daily 3:15 AM PKT | Pulls metrics, checks every token |
 | Social 3 Weekly Insights | n8n, Monday 9:10 AM PKT | Gemini writes 5 post ideas from your results |
 | Dashboard | Vercel (free) or your PC | Preview, edit, one click publish, calendar, analytics |
@@ -26,15 +26,23 @@ Supabase project: `qpmsrznvleogzjnovsmw` (database is already built and tested)
 
 ## Step 1. Get your tokens and IDs
 
-When you finish, you have: Facebook Page token + Page ID, Instagram ID, Threads token + Threads ID, LinkedIn token (person ID comes in Step 3), Gemini API key, and a webhook secret you make up.
+When you finish, you have: a Page token + Page ID for each Facebook Page (one or two), Instagram ID, Threads token + Threads ID, LinkedIn token (person ID comes in Step 3), Gemini API key, and a webhook secret you make up.
 
-**Facebook Page and Instagram (one token for both)**
+**Facebook Pages and Instagram (Page 1's token also serves Instagram)**
 1. Instagram app: Settings, Account type and tools, switch to a **Professional account**. On Facebook: Page settings, Linked accounts, Instagram, Connect.
 2. developers.facebook.com, My Apps, Create App. Add the use cases **Manage everything on your Page** and **Manage messaging and content on Instagram**. Development mode is fine for your own accounts.
 3. Graph API Explorer: pick your app, Generate Access Token with `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `read_insights`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_insights`, `business_management`. Select your Page and Instagram account in the popup.
 4. Access Token Debugger: paste it, click **Extend Access Token**, copy the long token.
 5. In Explorer with the long token run `me/accounts?fields=id,name,access_token`. Copy your Page `id` (Page ID) and `access_token` (Page token). The debugger should say **Expires: Never** for the Page token.
 6. With the Page token run `YOUR_PAGE_ID?fields=instagram_business_account` and copy the `id` inside. That is your Instagram ID.
+7. **Second Facebook Page.** `me/accounts` lists every Page you manage, each with its own `access_token`. Copy the second Page's `id` and `access_token` too. If the second Page is managed by a different Facebook account, repeat steps 3 to 5 signed in as that account (select that Page in the popup).
+   Page 1 is the Page your Instagram account is linked to, because its token also posts to Instagram.
+8. Paste the two Page tokens into `dashboard/.env.local`:
+   ```
+   FB_PAGE_1_TOKEN=page 1 token
+   FB_PAGE_2_TOKEN=page 2 token
+   ```
+   Only the credentials sheet script reads these (Step 2). The dashboard never uses them, so do not add them to Vercel.
 
 **Threads**
 1. Same Meta app: Use cases, Add, **Access the Threads API** with `threads_basic`, `threads_content_publish`, `threads_manage_insights`.
@@ -56,14 +64,16 @@ When you finish, you have: Facebook Page token + Page ID, Instagram ID, Threads 
 ## Step 2. n8n credentials (names must match exactly)
 
 Run `python tools/build_credentials_sheet.py`. It writes `n8n/CREDENTIALS.local.md` (git-ignored) with every credential below,
-already filled in where the value is known (Supabase Service Key, Publish Webhook Secret). Add social tokens to
-`tools/secrets.local.json` as you get them (`meta_page_token`, `threads_token`, `linkedin_token`, `gemini_key`) and run it again.
+already filled in where the value is known (Supabase Service Key, Publish Webhook Secret, and the Facebook Page tokens from
+`FB_PAGE_1_TOKEN` and `FB_PAGE_2_TOKEN` in `dashboard/.env.local`). Add the other social tokens to
+`tools/secrets.local.json` as you get them (`threads_token`, `linkedin_token`, `gemini_key`) and run it again.
 Credentials live only in n8n (encrypted), never inside the workflow files: the workflows point to them by these names.
 
 | Credential name | Type | Fields | Allowed domain |
 | --- | --- | --- | --- |
 | Supabase Service Key | Custom Auth | `{"headers":{"apikey":"SERVICE_ROLE_KEY","Authorization":"Bearer SERVICE_ROLE_KEY"}}` | `qpmsrznvleogzjnovsmw.supabase.co` |
-| Meta Page Token | Query Auth | Name `access_token`, Value = Page token | `graph.facebook.com` |
+| Meta Page Token | Query Auth | Name `access_token`, Value = Page 1 token (also used for Instagram) | `graph.facebook.com` |
+| Meta Page Token 2 | Query Auth | Name `access_token`, Value = Page 2 token (one Page only: Page 1's token again) | `graph.facebook.com` |
 | Threads Token | Query Auth | Name `access_token`, Value = Threads token | `graph.threads.net` |
 | LinkedIn Bearer | Header Auth | Name `Authorization`, Value `Bearer LINKEDIN_TOKEN` | `api.linkedin.com, www.linkedin.com` (image uploads go to www.linkedin.com, so do not allow only api.linkedin.com) |
 | Publish Webhook Secret | Header Auth | Name `x-publish-secret`, Value = your secret | |
@@ -78,7 +88,8 @@ The `service_role` key is in Supabase: Project Settings, API Keys. Keep it secre
 
 ## Step 4. Import workflows
 
-1. Create the 6 credentials from Step 2 **first**, so the imported workflows connect to them automatically.
+1. Create the credentials from Step 2 **first**, so the imported workflows connect to them automatically.
+   With only one Facebook Page, still create Meta Page Token 2 (paste Page 1's token) so every node has its credential. It is never used until a Page is set to it.
 2. n8n: Workflows, Create workflow, then the ⋯ menu, **Import from File**. Do this for each of the 4 files in `n8n/`.
    `social-0-mcp-server.json` is not in git (it holds the secret Claude connector path): on a fresh copy run `python tools/build_mcp.py` to create it.
 3. Open each one. If a node shows a credential warning, pick the credential with the same name.
@@ -92,6 +103,10 @@ Recommended Railway variables for n8n to keep the database small:
 `EXECUTIONS_DATA_PRUNE=true` and `EXECUTIONS_DATA_MAX_AGE=168`
 
 **Already imported an older version?** Re-import `social-1-one-click-publish.json` and `social-3-weekly-insights.json` (replace the old ones, then re-select credentials and activate). Social 1 now returns the post link for Instagram and Threads. Social 3 now raises an alert when Gemini sends a bad answer.
+
+**Adding a second Facebook Page?** Create the **Meta Page Token 2** credential, then re-import `social-1-one-click-publish.json` and `social-2-analytics-tokens.json`.
+Also run `python tools/build_mcp.py` and re-import `social-0-mcp-server.json`, so Claude gets the new `list_accounts` tool.
+Replace the old workflows, re-select credentials if asked, and activate. The Production URLs stay the same.
 
 ## Step 5. Your dashboard login (Supabase)
 
@@ -149,14 +164,19 @@ Local and Vercel use the same Supabase database and the same n8n, so a post you 
 
 ## Step 8. First setup inside the dashboard
 
-**Settings, Connected accounts.** Add 4 rows:
+**Settings, Connected accounts.** Add one row per account:
 
-| Platform | Display name | ID | Token expires |
-| --- | --- | --- | --- |
-| Facebook Page | your Page name | Page ID | empty (never expires) |
-| Instagram | your IG username | Instagram ID | empty |
-| Threads | your Threads username | Threads ID | date from Step 1 |
-| LinkedIn | your name | person ID from Step 3 | date from Step 1 |
+| Platform | Display name | ID | Page token (n8n) | Token expires |
+| --- | --- | --- | --- | --- |
+| Facebook Page | your first Page's name | Page 1 ID | Meta Page Token | empty (never expires) |
+| Facebook Page | your second Page's name | Page 2 ID | Meta Page Token 2 | empty |
+| Instagram | your IG username | Instagram ID | (uses Meta Page Token) | empty |
+| Threads | your Threads username | Threads ID | | date from Step 1 |
+| LinkedIn | your name | person ID from Step 3 | | date from Step 1 |
+
+Each Facebook Page must use the credential that holds **its own** token; you can switch it later in the Token column.
+With two Pages, Compose and Draft with Claude ask which Pages a post goes to (both are ticked to start with) and make one Facebook version per Page.
+Each version shows its Page name and has its own Publish button.
 
 **Groups and subreddits.** Add each Facebook Group and subreddit you post in, with its link and its rules.
 
@@ -164,7 +184,7 @@ Local and Vercel use the same Supabase database and the same n8n, so a post you 
 
 ## Step 9. Connect Claude
 
-There are two ways. Both can only create and edit drafts; publishing is always your click.
+There are three ways. All can only create and edit drafts; publishing is always your click.
 
 **A. Claude app (through n8n).** Claude app, Settings, Connectors, Add custom connector, paste the MCP Server production URL.
 Keep that URL private. The random path works as the key.
@@ -194,12 +214,26 @@ The reply includes `edit_url` (open it to review), and for each platform `char_c
 Settings, Claude API in the dashboard shows the base URL, a full example request, and which Compose field each API field fills.
 An agent on the same PC can call `http://127.0.0.1:3000/api/claude`; an agent in the cloud needs your deployed address.
 
+**C. Claude Code on your PC (no claude.ai chat history).** On the Draft with Claude page, "Run Claude in" has three choices:
+
+| Choice | What happens |
+| --- | --- |
+| Claude app | Opens claude.ai in your browser. The chat is saved in your claude.ai history. |
+| Terminal window | Opens a terminal with Claude Code already working on your request. You can reply to it there. |
+| Background | Claude Code works without a window; the page shows each step and links to the new drafts. |
+
+Terminal window and Background use the `claude` command (`npm install -g @anthropic-ai/claude-code`, then sign in once by running `claude`).
+They need `N8N_MCP_URL` and `N8N_MCP_KEY` in `.env.local`, and they only work when the dashboard runs on your PC, not on Vercel.
+The dashboard writes the connector settings to `%LOCALAPPDATA%\SocialHub\claude` and lets Claude use only the Social Hub tools without asking.
+These conversations are kept on your PC by Claude Code (open that folder and run `claude --resume` to see them). They are not in your claude.ai history, but they are still sent to Anthropic to be answered.
+The first time you use Terminal window, Claude asks whether you trust that folder: choose Yes.
+
 Try: "Check my platform rules, then draft a post about my n8n caregiver check-in automation for all platforms."
 
 ## Step 10. Test before real use (in this order)
 
 1. Ask Claude for a draft (or send one to `POST /api/claude/drafts`). It should appear in Posts.
-2. Facebook Page: text only, click Publish. Within about 10 seconds it shows Published with a link.
+2. Facebook Page: text only, click Publish. Within about 10 seconds it shows Published with a link. With two Pages, publish one version on each Page and check each post landed on the right Page.
 3. Then: Facebook with 1 image, Instagram with 1 image, Threads text, LinkedIn text, LinkedIn with 1 image.
 4. Click Publish all ready on a new post to post to all 4 API platforms at once.
 5. X and Reddit: click Open and post, post it, paste the link, Mark as posted.
@@ -209,7 +243,7 @@ Try: "Check my platform rules, then draft a post about my n8n caregiver check-in
 
 * **Red bar at the top of the dashboard:** a token failed or expires within 7 days. Renew the token, update the n8n credential, then change the date in Settings, Connected accounts and click Save. The expiry alert closes as soon as you save a date more than 7 days away.
 * **Every 60 days:** renew the Threads and LinkedIn tokens (as above).
-* **Facebook and Instagram:** the Page token never expires unless you change your Facebook password or remove the app.
+* **Facebook and Instagram:** Page tokens never expire unless you change your Facebook password or remove the app. Each Page is checked every night with its own token; an alert names the Page and the credential to renew.
 * **A post failed:** read the error on the card, fix it, click Retry.
 * **A card says "Stuck in publishing":** n8n stopped mid-way (for example a restart). Open the Social 1 executions in n8n and check the platform. If the post is not there, click Retry.
 

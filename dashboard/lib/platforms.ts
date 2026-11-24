@@ -71,9 +71,36 @@ export interface Account {
   platform: Platform;
   display_name: string;
   external_id: string | null;
+  n8n_credential_name: string | null;
   token_expires_at: string | null;
   is_active: boolean;
   is_default: boolean;
+}
+
+// Each Facebook Page has its own Page token, saved in n8n under one of these credential names.
+// The publisher picks the one set on the Page (Settings > Connected accounts). Page 1's token also serves Instagram.
+export const FB_TOKENS = ["Meta Page Token", "Meta Page Token 2"] as const;
+export const fbToken = (a: Pick<Account, "n8n_credential_name">) => a.n8n_credential_name || FB_TOKENS[0];
+
+// The n8n credential each platform's account uses (Facebook: chosen per Page)
+export function credentialOf(a: Pick<Account, "platform" | "n8n_credential_name">) {
+  if (a.platform === "facebook") return fbToken(a);
+  return ({ instagram: "Meta Page Token", threads: "Threads Token", linkedin: "LinkedIn Bearer" } as Record<string, string>)[a.platform] ?? "";
+}
+
+// The account a version posts to: its own, or the only active one for that platform.
+// Facebook Groups have no account of their own; their previews use the first Facebook Page.
+export function accountOf(v: Pick<Variant, "platform" | "account_id">, accounts: Account[]) {
+  const platform = v.platform === "facebook_group" ? "facebook" : v.platform;
+  const pool = accounts.filter((a) => a.platform === platform && a.is_active);
+  if (v.account_id) return pool.find((a) => a.id === v.account_id);
+  return v.platform === "facebook_group" || pool.length === 1 ? pool[0] : undefined;
+}
+
+// Facebook Page names show next to the platform only when there is more than one Page
+export function pageName(v: Pick<Variant, "platform" | "account_id">, accounts: Account[]) {
+  if (v.platform !== "facebook" || accounts.filter((a) => a.platform === "facebook" && a.is_active).length < 2) return undefined;
+  return accountOf(v, accounts)?.display_name;
 }
 
 export const PLATFORMS: { id: Platform; label: string; mode: PublishMode; color: string }[] = [
@@ -145,7 +172,16 @@ export function charCount(platform: Platform, text: string) {
   return Array.from(t).length;
 }
 
-export function validate(v: Variant, rule: Rule | undefined, media: Media[]): string[] {
+// Same rule as the database (validate_variant): two active Facebook Pages need a choice
+function accountError(v: Pick<Variant, "platform" | "account_id">, accounts: Account[]) {
+  const who = v.platform === "facebook" ? "Facebook Page" : "account";
+  const pool = accounts.filter((a) => a.platform === v.platform && a.is_active);
+  if (v.account_id) return pool.some((a) => a.id === v.account_id) ? null : `its ${who} is switched off or deleted, choose another`;
+  return pool.length > 1 ? `choose which ${who} to post to` : null;
+}
+
+// accounts: pass the active accounts to also check which account (Facebook Page) the version posts to
+export function validate(v: Variant, rule: Rule | undefined, media: Media[], accounts?: Account[]): string[] {
   const errs: string[] = [];
   if (!rule) return ["no platform rule"];
   if (!v.body.trim()) errs.push("text is empty");
@@ -164,6 +200,8 @@ export function validate(v: Variant, rule: Rule | undefined, media: Media[]): st
     if (m.length > 1) errs.push("one click publish supports 1 image, untick the others");
     if (!videos.length && m.some((x) => !["image/jpeg", "image/png"].includes(x.mime_type))) errs.push("use a JPEG or PNG image");
     if (v.platform === "instagram" && m.some((x) => x.mime_type !== "image/jpeg")) errs.push("Instagram needs a JPEG image");
+    const accErr = accounts ? accountError(v, accounts) : null;
+    if (accErr) errs.push(accErr);
   }
   if ((v.platform === "reddit" || v.platform === "facebook_group") && !v.group_target_id)
     errs.push("choose a group or subreddit");

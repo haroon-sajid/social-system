@@ -2,8 +2,9 @@
 
 The sheet holds secrets, so it is git-ignored. Run it again after you add or change a value:
     python tools/build_credentials_sheet.py
-Values are read from dashboard/.env.local and tools/secrets.local.json. Social tokens can be added to
-tools/secrets.local.json as they come in (keys: meta_page_token, threads_token, linkedin_token, gemini_key).
+Values are read from dashboard/.env.local and tools/secrets.local.json. The two Facebook Page tokens go in
+dashboard/.env.local as FB_PAGE_1_TOKEN and FB_PAGE_2_TOKEN. Other social tokens can be added to
+tools/secrets.local.json as they come in (keys: threads_token, linkedin_token, gemini_key).
 """
 import json
 import os
@@ -51,10 +52,15 @@ def val(key):
     return v if real(v) else TODO
 
 
+# Facebook Page tokens: .env.local first, then the older secrets.local.json keys
+fb1 = env.get("FB_PAGE_1_TOKEN", "") or sec.get("meta_page_token", "")
+fb2 = env.get("FB_PAGE_2_TOKEN", "") or sec.get("meta_page_token_2", "")
+
 rows = [
     ("Supabase Service Key", "Custom Auth", real(service), "qpmsrznvleogzjnovsmw.supabase.co"),
     ("Publish Webhook Secret", "Header Auth", real(webhook_secret), "(not needed: it protects the webhook)"),
-    ("Meta Page Token", "Query Auth", real(sec.get("meta_page_token", "")), "graph.facebook.com"),
+    ("Meta Page Token", "Query Auth", real(fb1), "graph.facebook.com"),
+    ("Meta Page Token 2", "Query Auth", real(fb2), "graph.facebook.com"),
     ("Threads Token", "Query Auth", real(sec.get("threads_token", "")), "graph.threads.net"),
     ("LinkedIn Bearer", "Header Auth", real(sec.get("linkedin_token", "")), "api.linkedin.com, www.linkedin.com"),
     ("Gemini API Key", "Header Auth", real(sec.get("gemini_key", "")), "generativelanguage.googleapis.com"),
@@ -97,35 +103,44 @@ Type **Header Auth**. The same value is N8N_WEBHOOK_SECRET in the dashboard (.en
 - Name: `x-publish-secret`
 - Value: `{webhook_secret if real(webhook_secret) else TODO}`
 
-## 3. Meta Page Token ({status(real(sec.get("meta_page_token", "")))})
+## 3. Meta Page Token ({status(real(fb1))})
 
-Type **Query Auth**. One token for the Facebook Page and Instagram (setup guide, Step 1).
+Type **Query Auth**. Facebook Page 1's Page token (FB_PAGE_1_TOKEN in dashboard/.env.local). It is also the
+Instagram token, so use the Page your Instagram account is linked to (setup guide, Step 1).
 
 - Name: `access_token`
-- Value: `{val("meta_page_token")}`
+- Value: `{fb1 if real(fb1) else TODO}`
 
-## 4. Threads Token ({status(real(sec.get("threads_token", "")))})
+## 4. Meta Page Token 2 ({status(real(fb2))})
+
+Type **Query Auth**. Facebook Page 2's Page token (FB_PAGE_2_TOKEN in dashboard/.env.local).
+In the dashboard, Settings > Connected accounts, set Page 2's token to "Meta Page Token 2".
+
+- Name: `access_token`
+- Value: `{fb2 if real(fb2) else TODO}`
+
+## 5. Threads Token ({status(real(sec.get("threads_token", "")))})
 
 Type **Query Auth**. Lasts 60 days.
 
 - Name: `access_token`
 - Value: `{val("threads_token")}`
 
-## 5. LinkedIn Bearer ({status(real(sec.get("linkedin_token", "")))})
+## 6. LinkedIn Bearer ({status(real(sec.get("linkedin_token", "")))})
 
 Type **Header Auth**. Lasts 60 days. Keep the word Bearer and the space.
 
 - Name: `Authorization`
 - Value: `Bearer {val("linkedin_token")}`
 
-## 6. Gemini API Key ({status(real(sec.get("gemini_key", "")))})
+## 7. Gemini API Key ({status(real(sec.get("gemini_key", "")))})
 
 Type **Header Auth**. From aistudio.google.com > Get API key.
 
 - Name: `x-goog-api-key`
 - Value: `{val("gemini_key")}`
 
-## 7. Claude MCP Key ({status(real(sec.get("mcp_header_key", "")))})
+## 8. Claude MCP Key ({status(real(sec.get("mcp_header_key", "")))})
 
 Type **Header Auth**. Social 0's MCP Server node (Authentication: Header Auth) requires it;
 Claude's connector sends the same header. (Claude only allows approved header names; x-api-key is one.)

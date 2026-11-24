@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AUTH_DISABLED } from "@/lib/auth-mode";
-import { platformMode, type Media, type Platform } from "@/lib/platforms";
+import { FB_TOKENS, platformMode, type Media, type Platform } from "@/lib/platforms";
+import { claudeJobView, openClaudeTerminal, startClaudeBackground, stopClaude, type JobView } from "@/lib/claude-local";
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -38,7 +39,7 @@ export async function createPost(fields: {
 
 export async function insertVariants(rows: {
   post_id: string; platform: Platform; body: string; title: string | null;
-  media_ids: string[]; group_target_id?: string | null; hashtags?: string[]; link_url?: string | null;
+  media_ids: string[]; group_target_id?: string | null; account_id?: string | null; hashtags?: string[]; link_url?: string | null;
 }[]): Promise<Result> {
   try {
     const supabase = await db();
@@ -63,6 +64,32 @@ export async function recentClaudeDrafts(sinceIso: string): Promise<
       .order("created_at", { ascending: false }).limit(10);
     if (error) throw error;
     return { ok: true, posts: (data ?? []) as { id: string; title: string | null; master_text: string; created_at: string; post_variants: { id: string; platform: Platform }[] }[] };
+  } catch (e) { return fail(e); }
+}
+
+// ---------- Draft with Claude on this PC (Claude Code), instead of the Claude app ----------
+// Only works when the dashboard runs on your own computer; see lib/claude-local.ts.
+export async function runClaudeHere(mode: "terminal" | "background", prompt: string):
+  Promise<{ ok: true; jobId?: string } | { ok: false; error: string }> {
+  try {
+    await db();
+    if (mode !== "terminal" && mode !== "background") return { ok: false, error: "Unknown mode" };
+    if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 20_000) return { ok: false, error: "The request is empty or too long." };
+    return await (mode === "terminal" ? openClaudeTerminal(prompt) : startClaudeBackground(prompt));
+  } catch (e) { return fail(e); }
+}
+
+export async function claudeJobStatus(id: string): Promise<{ ok: true; job: JobView | null } | { ok: false; error: string }> {
+  try {
+    await db();
+    return { ok: true, job: claudeJobView(id) };
+  } catch (e) { return fail(e); }
+}
+
+export async function stopClaudeJob(id: string): Promise<Result> {
+  try {
+    await db();
+    return stopClaude(id) ? { ok: true, message: "Stopped." } : { ok: false, error: "It is not running." };
   } catch (e) { return fail(e); }
 }
 
@@ -145,9 +172,17 @@ export async function removeMedia(mediaId: string): Promise<Result> {
   } catch (e) { return fail(e); }
 }
 
+// Database rules that would otherwise show up as raw constraint names
+const FRIENDLY: [string, string][] = [
+  ["uq_variant", "This post already has a version for that platform, Page or group."],
+  ["accounts_facebook_token_once", "Another active Facebook Page already uses that token. Each Page needs its own token: pick the other one."],
+  ["accounts_facebook_token_check", "Unknown Facebook token. Use Meta Page Token or Meta Page Token 2."],
+  ["accounts_platform_external_id_key", "That account ID is already connected."],
+];
+
 function fail(e: unknown): { ok: false; error: string } {
   const msg = e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e);
-  return { ok: false, error: msg };
+  return { ok: false, error: FRIENDLY.find(([k]) => msg.includes(k))?.[1] ?? msg };
 }
 
 export async function saveVariant(id: string, patch: {
@@ -261,7 +296,7 @@ export async function markManualDone(id: string, url: string): Promise<Result> {
   } catch (e) { return fail(e); }
 }
 
-export async function addVariant(postId: string, platform: Platform, groupTargetId: string | null): Promise<Result> {
+export async function addVariant(postId: string, platform: Platform, groupTargetId: string | null, accountId: string | null = null): Promise<Result> {
   try {
     const supabase = await db();
     const { data: post, error: pe } = await supabase.from("posts").select("master_text,title").eq("id", postId).single();
@@ -270,7 +305,7 @@ export async function addVariant(postId: string, platform: Platform, groupTarget
     // Same rule as Compose: one click publish takes 1 image, hand-posted platforms get none
     const firstImage = (media ?? []).find((m) => m.mime_type.startsWith("image/"));
     const { error } = await supabase.from("post_variants").insert({
-      post_id: postId, platform, group_target_id: groupTargetId,
+      post_id: postId, platform, group_target_id: groupTargetId, account_id: accountId,
       body: post.master_text, title: platform === "reddit" ? post.title : null,
       media_ids: platformMode(platform) === "api" && firstImage ? [firstImage.id] : [],
     });
@@ -321,18 +356,23 @@ export async function updatePostText(postId: string, fields: { title?: string; m
 // ---------- settings ----------
 export async function upsertAccount(row: {
   id?: string; platform: Platform; display_name: string; external_id: string;
-  token_expires_at: string | null; is_active: boolean;
+  token_expires_at: string | null; is_active: boolean; n8n_credential_name?: string | null;
 }): Promise<Result> {
   try {
     const supabase = await db();
     if (!row.display_name.trim() || !row.external_id.trim()) return { ok: false, error: "Name and ID are required" };
+    // Only Facebook Pages choose their token credential; the other platforms have one fixed credential each
+    const cred = row.platform === "facebook" ? row.n8n_credential_name || FB_TOKENS[0] : null;
+    if (cred && !(FB_TOKENS as readonly string[]).includes(cred)) return { ok: false, error: "Unknown Facebook token" };
     const { error } = await supabase.from("accounts").upsert({
-      ...row, display_name: row.display_name.trim(), external_id: row.external_id.trim(),
+      ...row, display_name: row.display_name.trim(), external_id: row.external_id.trim(), n8n_credential_name: cred,
     });
     if (error) throw error;
     // A renewed (or switched off) token clears its "expires soon" alert now, not at the next nightly check
     const exp = row.token_expires_at ? new Date(row.token_expires_at).getTime() : null;
-    if (!row.is_active || exp === null || exp > Date.now() + 7 * 864e5) await closeAlerts(supabase, row.platform, ["token_expiry"]);
+    if (!row.is_active || exp === null || exp > Date.now() + 7 * 864e5) {
+      await closeAlerts(supabase, row.platform, row.external_id.trim(), ["token_expiry"]);
+    }
     revalidatePath("/", "layout");
     return { ok: true };
   } catch (e) { return fail(e); }
@@ -341,17 +381,19 @@ export async function upsertAccount(row: {
 export async function deleteAccount(id: string): Promise<Result> {
   try {
     const supabase = await db();
-    const { data, error } = await supabase.from("accounts").delete().eq("id", id).select("platform");
+    const { data, error } = await supabase.from("accounts").delete().eq("id", id).select("platform,external_id");
     if (error) throw error;
-    for (const a of data ?? []) await closeAlerts(supabase, a.platform, ["token", "token_expiry"]);
+    for (const a of data ?? []) await closeAlerts(supabase, a.platform, a.external_id ?? "", ["token", "token_expiry"]);
     revalidatePath("/", "layout");
     return { ok: true };
   } catch (e) { return fail(e); }
 }
 
-async function closeAlerts(supabase: Db, platform: string, kinds: string[]) {
+// Token alerts are kept per account ("facebook:<page id>"), so two Pages never share one alert.
+// Plain "facebook" is the older key, closed too.
+async function closeAlerts(supabase: Db, platform: string, externalId: string, kinds: string[]) {
   await supabase.from("system_alerts").update({ is_open: false, resolved_at: new Date().toISOString() })
-    .eq("platform", platform).in("kind", kinds).eq("is_open", true);
+    .in("platform", [platform, `${platform}:${externalId}`]).in("kind", kinds).eq("is_open", true);
 }
 
 export async function upsertGroup(row: {

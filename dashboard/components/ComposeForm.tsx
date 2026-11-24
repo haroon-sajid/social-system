@@ -95,6 +95,9 @@ export default function ComposeForm({ groups, rules, accounts, prefill }: {
   const [link, setLink] = useState(prefill.link);
   const [picked, setPicked] = useState<Platform[]>(prefill.platforms.length ? prefill.platforms : DEFAULT_PLATFORMS);
   const [targets, setTargets] = useState<string[]>([]);
+  // Facebook Pages: every connected Page is ticked to start with; one Facebook draft is made per ticked Page
+  const fbPages = accounts.filter((a) => a.platform === "facebook" && a.is_active);
+  const [pages, setPages] = useState<string[]>(fbPages.map((a) => a.id));
   const [files, setFiles] = useState<File[]>([]);
   const [urlMedia, setUrlMedia] = useState<UrlMedia[]>(prefill.media.map((u) => ({ url: u, mime: mimeFromUrl(u) ?? "image/jpeg" })));
   const [urlInput, setUrlInput] = useState("");
@@ -118,6 +121,11 @@ export default function ComposeForm({ groups, rules, accounts, prefill }: {
   const ruleOf = (p: Platform) => rules.find((r) => r.platform === p);
   const toggle = (p: Platform) => setPicked((s) => (s.includes(p) ? s.filter((x) => x !== p) : [...s, p]));
   const toggleTarget = (id: string) => setTargets((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const togglePage = (id: string) => setPages((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const multiPage = fbPages.length > 1;
+  const chosenPages = fbPages.filter((a) => pages.includes(a.id));
+  // The Facebook Page(s) the drafts go to: the ticked ones, or the only Page
+  const fbAccountIds: (string | null)[] = multiPage ? chosenPages.map((a) => a.id) : [fbPages[0]?.id ?? null];
 
   // Local previews of chosen files (object URLs), then media given as links
   const fileItems = useMemo(() => files.map((f) => ({ key: `${f.name}-${f.size}-${f.lastModified}`, file: f, url: URL.createObjectURL(f), video: f.type.startsWith("video/") })), [files]);
@@ -145,12 +153,13 @@ export default function ComposeForm({ groups, rules, accounts, prefill }: {
   const variantFor = (p: Platform): Variant => {
     const e = eff(p);
     return {
-      id: p, post_id: "new", platform: p, account_id: null, group_target_id: isTarget(p) ? targetOf(p)?.id ?? null : null,
+      id: p, post_id: "new", platform: p, account_id: p === "facebook" ? fbAccountIds[0] ?? null : null,
+      group_target_id: isTarget(p) ? targetOf(p)?.id ?? null : null,
       title: e.title, body: e.body, hashtags: e.hashtags, link_url: e.link, media_ids: mediaFor(p).map((m) => m.id),
       status: "draft", scheduled_at: null, published_at: null, platform_post_url: null, last_error: null, publish_attempts: 0, locked_at: null,
     };
   };
-  const errorsFor = (p: Platform) => validate(variantFor(p), ruleOf(p), localMedia);
+  const errorsFor = (p: Platform) => validate(variantFor(p), ruleOf(p), localMedia, accounts);
   const countFor = (p: Platform) => { const e = eff(p); return charCount(p, composeFull(p, e.body, e.hashtags, e.link)); };
 
   const setCustom = (p: Platform, on: boolean) => setOverrides((s) => {
@@ -161,7 +170,11 @@ export default function ComposeForm({ groups, rules, accounts, prefill }: {
   });
   const patch = (p: Platform, f: Partial<Override>) => setOverrides((s) => ({ ...s, [p]: { ...(s[p] as Override), ...f } }));
 
-  const draftCount = picked.reduce((n, p) => n + (isTarget(p) ? Math.max(1, groups.filter((g) => g.platform === p && targets.includes(g.id)).length) : 1), 0);
+  const draftsFor = (p: Platform) => {
+    if (isTarget(p)) return Math.max(1, groups.filter((g) => g.platform === p && targets.includes(g.id)).length);
+    return p === "facebook" ? Math.max(1, fbAccountIds.length) : 1;
+  };
+  const draftCount = picked.reduce((n, p) => n + draftsFor(p), 0);
   const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
 
   function addUrl() {
@@ -210,6 +223,9 @@ export default function ComposeForm({ groups, rules, accounts, prefill }: {
           const ts = groups.filter((g) => g.platform === p && targets.includes(g.id));
           if (ts.length) ts.forEach((g) => rows.push({ ...base, group_target_id: g.id }));
           else rows.push(base);
+        } else if (p === "facebook") {
+          // One Facebook draft per chosen Page (none chosen: one draft, pick the Page on it later)
+          (fbAccountIds.length ? fbAccountIds : [null]).forEach((id) => rows.push({ ...base, account_id: id }));
         } else rows.push(base);
       }
       const ok = await insertVariants(rows);
@@ -224,7 +240,8 @@ export default function ComposeForm({ groups, rules, accounts, prefill }: {
   }
 
   const createLabel = busy ?? `Create ${draftCount} draft${draftCount === 1 ? "" : "s"}`;
-  const accountName = (p: Platform) => accounts.find((a) => a.platform === (p === "facebook_group" ? "facebook" : p))?.display_name ?? "Your account";
+  const accountName = (p: Platform) => (p === "facebook" && chosenPages[0]?.display_name)
+    || accounts.find((a) => a.platform === (p === "facebook_group" ? "facebook" : p))?.display_name || "Your account";
   const targetLabel = (g?: GroupTarget) => (g ? (g.platform === "reddit" ? `r/${g.subreddit}` : g.name) : undefined);
 
   // Tabs: one step at a time, each shows a short summary and a check once it is filled in
@@ -441,6 +458,27 @@ export default function ComposeForm({ groups, rules, accounts, prefill }: {
                 );
               })}
             </div>
+            {picked.includes("facebook") && multiPage && (
+              <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-[13px] font-semibold text-slate-800">Facebook Pages</span>
+                  <span className="text-xs text-slate-500">One draft for each Page you pick</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {fbPages.map((a) => {
+                    const on = pages.includes(a.id);
+                    return (
+                      <button type="button" key={a.id} onClick={() => togglePage(a.id)} aria-pressed={on}
+                        className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-[13px] transition ${on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>
+                        <PlatformIcon platform="facebook" size={20} rounded="rounded-full" />
+                        {a.display_name}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!chosenPages.length && <p className="hint text-amber-700">No Page picked: the Facebook draft will ask you to choose one before publishing.</p>}
+              </div>
+            )}
             {(picked.includes("reddit") || picked.includes("facebook_group")) && (
               <div className="mt-5 rounded-2xl border border-slate-200 p-4">
                 <div className="mb-3 flex items-center justify-between">

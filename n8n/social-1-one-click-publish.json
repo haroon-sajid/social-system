@@ -195,6 +195,71 @@
     },
     {
       "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "aa463560-5257-5444-9f40-2e0b3496192d",
+                    "leftValue": "={{ $json.token }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Meta Page Token"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Meta Page Token"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6634dbee-7eae-553d-aaf3-d98a872a59c2",
+                    "leftValue": "={{ $json.token }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Meta Page Token 2"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Meta Page Token 2"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ab2936b7-4d8a-5ec2-aac1-2592b8aedccb",
+      "name": "Facebook Token",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        700,
+        -40
+      ]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "=https://graph.facebook.com/v25.0/{{ $json.account_id }}/{{ $json.image_url ? 'photos' : 'feed' }}",
         "authentication": "genericCredentialType",
@@ -209,12 +274,38 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        700,
-        0
+        920,
+        -120
       ],
       "credentials": {
         "httpQueryAuth": {
           "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.account_id }}/{{ $json.image_url ? 'photos' : 'feed' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.image_url ? { url: $json.image_url, message: $json.text } : Object.assign({ message: $json.text }, $json.link_url ? { link: $json.link_url } : {})) }}",
+        "options": {}
+      },
+      "id": "7238c4a9-be5a-5e72-b604-fe19d97e2bb8",
+      "name": "Facebook Post 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        20
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Meta Page Token 2"
         }
       },
       "onError": "continueErrorOutput"
@@ -418,7 +509,7 @@
           },
           "conditions": [
             {
-              "id": "15ac6c77-e6fc-591f-83bd-44a3b2b9f4a5",
+              "id": "cb265a71-40ae-587d-a7d2-5152e05bc3a5",
               "leftValue": "={{ $json.image_url }}",
               "operator": {
                 "type": "string",
@@ -589,7 +680,7 @@
     },
     {
       "parameters": {
-        "jsCode": "\n// Turns an HTTP error into one readable sentence, for example \"Version not found\" or Meta's error_user_msg.\n// n8n wraps API errors as: 400 - \"{\\\"message\\\":\\\"...\\\"}\", so unwrap that first.\nfunction readErr(raw) {\n  const e = raw?.error ?? raw ?? {};\n  if (typeof e === 'string') return e.slice(0, 1500);\n  const pick = (v) => {\n    if (!v) return null;\n    let j = v;\n    if (typeof v === 'string') {\n      let s = v;\n      const m = v.match(/^\\d{3} - (\"[\\s\\S]*\")$/);\n      if (m) { try { s = JSON.parse(m[1]); } catch (_) {} }\n      try { j = JSON.parse(s); } catch (_) { return s; }\n    }\n    const msg = j?.error?.error_user_msg || j?.error?.message || j?.message || j?.error_description || j?.error;\n    return typeof msg === 'string' ? msg : null;\n  };\n  return (pick(e.description) || pick(e.message) || 'Unknown error').slice(0, 1500);\n}\n\nconst job = $('Start Publish').first().json;\nreturn [{ json: { variant_id: job.variant_id, success: false, platform_post_id: null, url: null,\n  error: `${job.platform}: ${readErr($input.first().json)}` } }];\n"
+        "jsCode": "\n// Turns an HTTP error into one readable sentence, for example \"Version not found\" or Meta's error_user_msg.\n// n8n wraps API errors as: 400 - \"{\\\"message\\\":\\\"...\\\"}\", so unwrap that first.\nfunction readErr(raw) {\n  const e = raw?.error ?? raw ?? {};\n  if (typeof e === 'string') return e.slice(0, 1500);\n  const pick = (v) => {\n    if (!v) return null;\n    let j = v;\n    if (typeof v === 'string') {\n      let s = v;\n      const m = v.match(/^\\d{3} - (\"[\\s\\S]*\")$/);\n      if (m) { try { s = JSON.parse(m[1]); } catch (_) {} }\n      try { j = JSON.parse(s); } catch (_) { return s; }\n    }\n    const msg = j?.error?.error_user_msg || j?.error?.message || j?.message || j?.error_description || j?.error;\n    return typeof msg === 'string' ? msg : null;\n  };\n  return (pick(e.description) || pick(e.message) || 'Unknown error').slice(0, 1500);\n}\n\nconst job = $('Start Publish').first().json;\n// With two Facebook Pages, say which Page failed\nconst who = job.platform === 'facebook' && job.account_name ? `facebook (${job.account_name})` : job.platform;\nreturn [{ json: { variant_id: job.variant_id, success: false, platform_post_id: null, url: null,\n  error: `${who}: ${readErr($input.first().json)}` } }];\n"
       },
       "id": "0616a3d8-6c8f-5267-859a-baeba832b251",
       "name": "Build Error",
@@ -646,8 +737,8 @@
     },
     {
       "parameters": {
-        "content": "## One Click Publish\nThe dashboard sends one version id. Supabase checks it, locks it (no double posts) and returns the ready text.\nThis workflow posts it and replies with the link or the exact error.\nSupports text plus 1 image. Videos are posted by hand.",
-        "height": 200,
+        "content": "## One Click Publish\nThe dashboard sends one version id. Supabase checks it, locks it (no double posts) and returns the ready text.\nThis workflow posts it and replies with the link or the exact error.\nSupports text plus 1 image. Videos are posted by hand.\nFacebook: each Page uses its own token (Meta Page Token or Meta Page Token 2), set per Page in Settings.",
+        "height": 240,
         "width": 420
       },
       "id": "5ddc388a-10a2-507f-9b4a-119575bd8241",
@@ -656,7 +747,7 @@
       "typeVersion": 1,
       "position": [
         -40,
-        -40
+        -80
       ]
     }
   ],
@@ -705,7 +796,7 @@
       "main": [
         [
           {
-            "node": "Facebook Post",
+            "node": "Facebook Token",
             "type": "main",
             "index": 0
           }
@@ -727,6 +818,24 @@
         [
           {
             "node": "LinkedIn Has Image?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook Token": {
+      "main": [
+        [
+          {
+            "node": "Facebook Post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Facebook Post 2",
             "type": "main",
             "index": 0
           }
@@ -900,6 +1009,24 @@
       ]
     },
     "Facebook Post": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook Post 2": {
       "main": [
         [
           {

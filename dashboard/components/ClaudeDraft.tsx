@@ -1,11 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { recentClaudeDrafts } from "@/app/actions";
+import { recentClaudeDrafts, runClaudeHere } from "@/app/actions";
 import { buildClaudePrompt, imageMime, promptSummary } from "@/lib/claude-prompt";
+import type { LocalClaude } from "@/lib/claude-local";
+import { BackgroundRun, RUN_LABEL, RunModePicker, type RunMode } from "./ClaudeRun";
 import { Icon, PlatformIcon, type IconName } from "./icons";
 import { Callout, Panel } from "./ui";
-import { CONTENT_TYPES, PLATFORMS, contentTypeLabel, fmtDate, platformLabel, type GroupTarget, type Platform } from "@/lib/platforms";
+import { CONTENT_TYPES, PLATFORMS, contentTypeLabel, fmtDate, platformLabel, type Account, type GroupTarget, type Platform } from "@/lib/platforms";
 
 export type Draft = { id: string; title: string | null; master_text: string; created_at: string; post_variants: { id: string; platform: Platform }[] };
 
@@ -58,13 +60,43 @@ function DraftRow({ d, fresh }: { d: Draft; fresh?: boolean }) {
   );
 }
 
-export default function ClaudeDraft({ groups, recent, prefill }: {
-  groups: GroupTarget[]; recent: Draft[]; prefill: { topic: string; type: string; platforms: Platform[] };
+const MODE_KEY = "socialhub.claudeRunMode";
+const WAIT_TEXT: Record<RunMode, string> = {
+  app: "Send the message in the Claude tab. Empty message box? Press Ctrl+V, then send.",
+  terminal: "Claude is working in the terminal window. Answer it there if it asks you something.",
+  background: "Claude is working on this PC. Its progress shows above.",
+};
+
+export default function ClaudeDraft({ groups, fbPages, recent, prefill, local }: {
+  groups: GroupTarget[]; fbPages: Pick<Account, "id" | "display_name">[]; recent: Draft[];
+  prefill: { topic: string; type: string; platforms: Platform[] }; local: LocalClaude;
 }) {
+  // Where Claude runs. Starts on the terminal when this PC can run it, and remembers your last choice.
+  const usable = (m: RunMode) => m === "app" || local[m].available;
+  const [mode, setMode] = useState<RunMode>(local.terminal.available ? "terminal" : "app");
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(MODE_KEY) as RunMode | null;
+      if (saved && ["app", "terminal", "background"].includes(saved) && usable(saved)) setMode(saved);
+    } catch { /* storage blocked */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const pickMode = (m: RunMode) => {
+    setMode(m);
+    try { localStorage.setItem(MODE_KEY, m); } catch { /* storage blocked */ }
+  };
   const [topic, setTopic] = useState(prefill.topic);
   const [details, setDetails] = useState("");
   const [picked, setPicked] = useState<Platform[]>(prefill.platforms.length ? prefill.platforms : ["facebook", "instagram", "threads", "linkedin", "x"]);
   const [targets, setTargets] = useState<string[]>([]);
+  // Facebook Pages (only asked when there is more than one): all ticked to start with
+  const [pageIds, setPageIds] = useState<string[]>(fbPages.map((p) => p.id));
+  const multiPage = fbPages.length > 1;
+  const chosenPages = multiPage ? fbPages.filter((p) => pageIds.includes(p.id)) : [];
+  const togglePage = (id: string) => setPageIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   const [ctype, setCtype] = useState(CONTENT_TYPES.includes(prefill.type) ? prefill.type : "auto");
   const [tone, setTone] = useState("rules");
   const [language, setLanguage] = useState("English");
@@ -78,10 +110,10 @@ export default function ClaudeDraft({ groups, recent, prefill }: {
 
   const ordered = PLATFORMS.map((p) => p.id).filter((p) => picked.includes(p));
   const chosenTargets = groups.filter((g) => picked.includes(g.platform) && targets.includes(g.id));
-  const request = { topic, details, platforms: ordered, targets: chosenTargets, contentType: ctype, tone, language, link, image };
+  const request = { topic, details, platforms: ordered, targets: chosenTargets, pages: chosenPages, contentType: ctype, tone, language, link, image };
   const prompt = useMemo(() => buildClaudePrompt(request),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [topic, details, ordered.join(), chosenTargets.map((g) => g.id).join(), ctype, tone, language, link, image]);
+    [topic, details, ordered.join(), chosenTargets.map((g) => g.id).join(), chosenPages.map((p) => p.id).join(), ctype, tone, language, link, image]);
   const summary = promptSummary(request);
   const missingTarget = (["reddit", "facebook_group"] as Platform[]).filter((p) => picked.includes(p) && !chosenTargets.some((g) => g.platform === p));
   const freshIds = new Set(fresh.map((d) => d.id));
@@ -109,6 +141,7 @@ export default function ClaudeDraft({ groups, recent, prefill }: {
   function validate() {
     if (!topic.trim()) return "Describe what the post is about.";
     if (!ordered.length) return "Pick at least one platform.";
+    if (multiPage && ordered.includes("facebook") && !chosenPages.length) return "Pick at least one Facebook Page, or untick Facebook Page.";
     if (link.trim() && !/^https?:\/\/\S+$/i.test(link.trim())) return "The link must start with http:// or https://";
     if (image.trim() && (!/^https:\/\/\S+$/i.test(image.trim()) || !imageMime(image.trim()))) {
       return "The image link must be a public https link ending in .jpg, .png or .webp (or add the image in the dashboard later).";
@@ -124,9 +157,19 @@ export default function ClaudeDraft({ groups, recent, prefill }: {
   async function openClaude() {
     const problem = validate();
     setError(problem);
+    setNotice(null);
     if (problem) return;
-    await copyPrompt();
-    window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`, "_blank", "noopener");
+    if (mode === "app") {
+      await copyPrompt();
+      window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`, "_blank", "noopener");
+    } else {
+      // Claude Code on this PC: a terminal window, or in the background with progress shown here
+      setStarting(true);
+      const r = await runClaudeHere(mode, prompt).finally(() => setStarting(false));
+      if (!r.ok) return setError(r.error);
+      if (mode === "background" && r.jobId) setJobId(r.jobId);
+      if (mode === "terminal") setNotice("A terminal window opened with Claude Code. The first time, confirm that you trust the folder; if Claude asks to use a Social Hub tool, allow it.");
+    }
     setOpened(true);
     if (!waitingSince) setWaitingSince(new Date(Date.now() - 60_000).toISOString());
   }
@@ -135,7 +178,7 @@ export default function ClaudeDraft({ groups, recent, prefill }: {
   const stage = fresh.length ? 4 : opened ? 3 : topic.trim() ? 2 : 1;
   const STEPS: { title: string; text: string }[] = [
     { title: "Describe", text: "What the post is about" },
-    { title: "Send to Claude", text: "Open in Claude, then send" },
+    { title: "Send to Claude", text: mode === "app" ? "Open in Claude, then send" : mode === "terminal" ? "Opens a terminal window" : "Runs on this PC" },
     { title: "Claude writes", text: "One version per platform" },
     { title: "Review drafts", text: "Open them and check each preview" },
   ];
@@ -213,6 +256,27 @@ export default function ClaudeDraft({ groups, recent, prefill }: {
               </div>
             </div>
 
+            {multiPage && picked.includes("facebook") && (
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[13px] font-semibold text-slate-800">Facebook Pages</span>
+                  <span className="text-xs text-slate-500">The Facebook version is saved for each Page you pick</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {fbPages.map((p) => {
+                    const on = pageIds.includes(p.id);
+                    return (
+                      <button key={p.id} type="button" onClick={() => togglePage(p.id)} aria-pressed={on}
+                        className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-[13px] transition ${on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>
+                        <PlatformIcon platform="facebook" size={20} rounded="rounded-full" />
+                        {p.display_name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {(picked.includes("reddit") || picked.includes("facebook_group")) && (
               <div className="rounded-2xl border border-slate-200 p-4">
                 <div className="mb-2 text-[13px] font-semibold text-slate-800">Groups and subreddits</div>
@@ -275,6 +339,9 @@ export default function ClaudeDraft({ groups, recent, prefill }: {
               </Callout>
             )}
             {error && <Callout tone="danger" onClose={() => setError(null)}>{error}</Callout>}
+            {notice && <Callout tone="info" onClose={() => setNotice(null)}>{notice}</Callout>}
+
+            <RunModePicker value={mode} onChange={pickMode} local={local} />
           </div>
 
           <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
@@ -283,8 +350,9 @@ export default function ClaudeDraft({ groups, recent, prefill }: {
               <button type="button" className="btn-secondary" onClick={async () => { const p = validate(); setError(p); if (!p) await copyPrompt(); }}>
                 <Icon name={copied ? "check" : "copy"} size={15} /> {copied ? "Copied" : "Copy prompt"}
               </button>
-              <button type="button" className="btn-ai" onClick={openClaude}>
-                <Icon name="sparkles" size={15} /> {opened ? "Open in Claude again" : "Open in Claude"}
+              <button type="button" className="btn-ai" onClick={openClaude} disabled={starting || !usable(mode)}>
+                <Icon name={mode === "app" ? "sparkles" : mode === "terminal" ? "code" : "clock"} size={15} />
+                {starting ? "Starting..." : opened && mode !== "background" ? `${RUN_LABEL[mode]} again` : RUN_LABEL[mode]}
               </button>
             </div>
           </div>
@@ -292,6 +360,8 @@ export default function ClaudeDraft({ groups, recent, prefill }: {
 
         {/* Side column: what happens, drafts, tips */}
         <aside className="flex min-w-0 flex-col gap-5">
+          {jobId && <BackgroundRun key={jobId} jobId={jobId} onClose={() => setJobId(null)} />}
+
           <Panel title="What Claude will do" desc="Built from your choices, updated as you type.">
             <ul className="space-y-2.5 px-6 py-5">
               {summary.map((s) => (
@@ -323,7 +393,7 @@ export default function ClaudeDraft({ groups, recent, prefill }: {
                 </span>
                 <div className="min-w-0 flex-1 text-xs leading-relaxed text-slate-600">
                   <span className="block text-[13px] font-semibold text-slate-900">Waiting for Claude...</span>
-                  Send the message in the Claude tab. Empty message box? Press Ctrl+V, then send.
+                  {WAIT_TEXT[mode]}
                 </div>
                 <button type="button" className="btn-ghost btn-sm" onClick={() => setWaitingSince(null)}>Stop</button>
               </div>

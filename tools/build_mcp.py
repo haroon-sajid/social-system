@@ -52,6 +52,12 @@ tool("list_group_targets",
      http(f"{SUPA}/rest/v1/group_targets?is_active=eq.true&select=id,platform,name,url,subreddit,flair,rules_notes"),
      (200, 300))
 
+tool("list_accounts",
+     "List the user's connected accounts (id, platform, display_name). The user can have more than one Facebook Page. "
+     "Use the facebook ids as account_ids in create_draft to choose which Pages get the post.",
+     http(f"{SUPA}/rest/v1/accounts?is_active=eq.true&select=id,platform,display_name&order=platform,created_at"),
+     (300, 450))
+
 CREATE_DESC = (
     "Save a new post as a DRAFT with one version per platform. Nothing is published. The user reviews and publishes "
     "in the dashboard. Call get_platform_rules first and write each version to fit its platform. Count characters "
@@ -67,6 +73,8 @@ CREATE_DESC = (
     "\"variants\": [{\"platform\": facebook|instagram|threads|linkedin|x|reddit|facebook_group, "
     "\"body\": text without hashtags, \"hashtags\": [\"tag\"], \"link_url\": optional, "
     "\"title\": required for reddit, \"group_target_ids\": [ids] for reddit and facebook_group, "
+    "\"account_ids\": [ids from list_accounts] optional for facebook: which Facebook Pages get this version "
+    "(one version is saved per Page; leave it out to use every connected Page), "
     "\"use_media\": true or false}]}. "
     "Returns post_id and each variant with char_count, max_chars and errors. If any variant has errors, fix it with "
     "update_variant. Instagram errors about missing media are fine: the user uploads media in the dashboard.")

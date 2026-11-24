@@ -14,7 +14,7 @@ const HOUR_PX = 76;
 const CARD_PX = 74;
 
 type Row = {
-  id: string; post_id: string; platform: Platform; status: VariantStatus; scheduled_at: string | null;
+  id: string; post_id: string; platform: Platform; account_id: string | null; status: VariantStatus; scheduled_at: string | null;
   published_at: string | null; posts: { title: string | null; master_text: string } | null;
 };
 type Ev = Row & { key: string; minutes: number; time: string };
@@ -52,12 +52,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   const [{ data }, accounts] = await Promise.all([
     supabase.from("post_variants")
-      .select("id,post_id,platform,status,scheduled_at,published_at,posts(title,master_text)")
+      .select("id,post_id,platform,account_id,status,scheduled_at,published_at,posts(title,master_text)")
       .or(`and(scheduled_at.gte.${s},scheduled_at.lt.${e}),and(published_at.gte.${s},published_at.lt.${e})`)
       .limit(1000),
-    supabase.from("accounts").select("platform,display_name").eq("is_active", true),
+    supabase.from("accounts").select("id,platform,display_name").eq("is_active", true).order("created_at"),
   ]);
-  const nameOf = (p: Platform) => (accounts.data ?? []).find((a) => a.platform === (p === "facebook_group" ? "facebook" : p))?.display_name ?? platformLabel(p);
+  // The version's own account (each Facebook Page by name), else the platform's first account
+  const nameOf = (ev: Pick<Row, "platform" | "account_id">) => {
+    const list = accounts.data ?? [];
+    const platform = ev.platform === "facebook_group" ? "facebook" : ev.platform;
+    return (list.find((a) => a.id === ev.account_id) ?? list.find((a) => a.platform === platform))?.display_name ?? platformLabel(ev.platform);
+  };
 
   const byDay = new Map<string, Ev[]>();
   for (const r of (data ?? []) as unknown as Row[]) {
@@ -115,7 +120,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 }
 
 function WeekView({ startDay, byDay, todayKey, nowMin, nameOf }: {
-  startDay: number; byDay: Map<string, Ev[]>; todayKey: string; nowMin: number; nameOf: (p: Platform) => string;
+  startDay: number; byDay: Map<string, Ev[]>; todayKey: string; nowMin: number; nameOf: (ev: Pick<Row, "platform" | "account_id">) => string;
 }) {
   const cols = Array.from({ length: 7 }, (_, i) => {
     const t = startDay + i * DAY;
@@ -179,7 +184,7 @@ function WeekView({ startDay, byDay, todayKey, nowMin, nameOf }: {
                   className="absolute inset-x-1.5 z-[5] flex flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white p-2 shadow-[0_2px_6px_rgba(18,19,22,0.06)] transition hover:border-slate-300 hover:shadow-[0_6px_16px_rgba(18,19,22,0.1)]">
                   <span className="flex items-center gap-1.5">
                     <PlatformIcon platform={ev.platform} size={18} rounded="rounded-full" />
-                    <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-900">{nameOf(ev.platform)}</span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-900">{nameOf(ev)}</span>
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[ev.status]}`} />
                   </span>
                   <span className="mt-1 line-clamp-1 text-[11.5px] leading-snug text-slate-700">{ev.posts?.title || ev.posts?.master_text}</span>

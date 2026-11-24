@@ -17,10 +17,16 @@ LI_VERSION = "202609"
 # Credential names the user creates once in n8n
 CRED_SUPA = ("httpCustomAuth", "Supabase Service Key")
 CRED_META = ("httpQueryAuth", "Meta Page Token")
+CRED_META2 = ("httpQueryAuth", "Meta Page Token 2")
 CRED_THREADS = ("httpQueryAuth", "Threads Token")
 CRED_LI = ("httpHeaderAuth", "LinkedIn Bearer")
 CRED_WEBHOOK = ("httpHeaderAuth", "Publish Webhook Secret")
 CRED_GEMINI = ("httpHeaderAuth", "Gemini API Key")
+
+# Facebook Pages: each Page has its own Page token in its own credential. The database (accounts.n8n_credential_name)
+# says which one a Page uses, and the workflows route to the node with that credential (n8n cannot pick one at run time).
+# Page 1's token also serves Instagram. To add a third Page: add a row here and to the accounts check in Supabase.
+FB_TOKENS = [("Meta Page Token", CRED_META, ""), ("Meta Page Token 2", CRED_META2, " 2")]
 
 
 class WF:

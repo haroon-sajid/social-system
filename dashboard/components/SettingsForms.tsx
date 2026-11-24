@@ -4,13 +4,13 @@ import { useRouter } from "next/navigation";
 import { deleteAccount, deleteGroup, updateRule, upsertAccount, upsertGroup } from "@/app/actions";
 import { Icon, PlatformIcon } from "./icons";
 import { Callout, Panel } from "./ui";
-import { platformLabel, type Account, type GroupTarget, type Platform, type Rule } from "@/lib/platforms";
+import { FB_TOKENS, credentialOf, fbToken, platformLabel, type Account, type GroupTarget, type Platform, type Rule } from "@/lib/platforms";
 
 export type SettingsTab = "accounts" | "groups" | "rules";
 type Run = (fn: () => Promise<{ ok: boolean; error?: string }>) => void;
 
 const API_PLATFORMS: { id: Platform; idHelp: string; where: string; expires: string }[] = [
-  { id: "facebook", idHelp: "Facebook Page ID (numbers)", where: "Graph API Explorer: me/accounts, the Page id", expires: "Never" },
+  { id: "facebook", idHelp: "Facebook Page ID (numbers)", where: "Graph API Explorer: me/accounts, the Page id. Each Page has its own token.", expires: "Never" },
   { id: "instagram", idHelp: "Instagram business account ID", where: "{page-id}?fields=instagram_business_account", expires: "Never" },
   { id: "threads", idHelp: "Threads user ID (numbers)", where: "graph.threads.net/v1.0/me, the id", expires: "60 days" },
   { id: "linkedin", idHelp: "LinkedIn person ID (sub)", where: "api.linkedin.com/v2/userinfo, the sub", expires: "60 days" },
@@ -66,19 +66,23 @@ export default function SettingsForms({ tab, accounts, groups, rules }: { tab: S
 
 // ---------------- Accounts ----------------
 function AccountsTab({ accounts, pending, run }: { accounts: Account[]; pending: boolean; run: Run }) {
-  const [acc, setAcc] = useState({ platform: "facebook" as Platform, display_name: "", external_id: "", token_expires_at: "" });
+  const [acc, setAcc] = useState({ platform: "facebook" as Platform, display_name: "", external_id: "", token_expires_at: "", token: "" });
   const help = API_PLATFORMS.find((p) => p.id === acc.platform);
+  // A new Facebook Page gets the first token no active Page uses yet
+  const usedTokens = accounts.filter((a) => a.platform === "facebook" && a.is_active).map(fbToken);
+  const token = acc.token || FB_TOKENS.find((t) => !usedTokens.includes(t)) || FB_TOKENS[0];
+  const fb = acc.platform === "facebook";
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <Panel
         title="Connected accounts"
-        desc="The publisher posts to these IDs. Tokens stay in n8n; set the expiry date to get a warning 7 days before."
+        desc="The publisher posts to these IDs. Tokens stay in n8n under the credential shown; set the expiry date to get a warning 7 days before."
         action={<span className="chip">{accounts.length} connected</span>}
         footer={
           <div>
             <div className="mb-3 text-[13px] font-semibold text-slate-800">Add an account</div>
-            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)_160px_auto] 2xl:items-end">
+            <div className={`grid gap-3 sm:grid-cols-2 2xl:items-end ${fb ? "2xl:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)_190px_150px_auto]" : "2xl:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)_160px_auto]"}`}>
               <div>
                 <label className="label" htmlFor="a-platform">Platform</label>
                 <select id="a-platform" className="input" value={acc.platform} onChange={(e) => setAcc({ ...acc, platform: e.target.value as Platform })}>
@@ -93,18 +97,29 @@ function AccountsTab({ accounts, pending, run }: { accounts: Account[]; pending:
                 <label className="label" htmlFor="a-id">Account ID</label>
                 <input id="a-id" className="input" placeholder={help?.idHelp} value={acc.external_id} onChange={(e) => setAcc({ ...acc, external_id: e.target.value })} />
               </div>
+              {fb && (
+                <div>
+                  <label className="label" htmlFor="a-token">Page token (n8n)</label>
+                  <select id="a-token" className="input" value={token} onChange={(e) => setAcc({ ...acc, token: e.target.value })}>
+                    {FB_TOKENS.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="label" htmlFor="a-exp">Token expires</label>
                 <input id="a-exp" className="input" type="date" title="Leave empty if it never expires" value={acc.token_expires_at} onChange={(e) => setAcc({ ...acc, token_expires_at: e.target.value })} />
               </div>
               <button className="btn-primary h-[42px] sm:col-span-2 2xl:col-span-1" disabled={pending} onClick={() => run(async () => {
                 const r = await upsertAccount({ platform: acc.platform, display_name: acc.display_name, external_id: acc.external_id,
-                  token_expires_at: fromDateInput(acc.token_expires_at), is_active: true });
-                if (r.ok) setAcc({ ...acc, display_name: "", external_id: "", token_expires_at: "" });
+                  token_expires_at: fromDateInput(acc.token_expires_at), is_active: true, n8n_credential_name: fb ? token : null });
+                if (r.ok) setAcc({ ...acc, display_name: "", external_id: "", token_expires_at: "", token: "" });
                 return r;
               })}><Icon name="plus" size={15} /> Add account</button>
             </div>
-            <p className="hint">{help ? `${platformLabel(help.id)} token expires: ${help.expires}. ${help.expires === "Never" ? "Leave the date empty." : "Enter the date 60 days after you made the token."}` : ""}</p>
+            <p className="hint">
+              {help ? `${platformLabel(help.id)} token expires: ${help.expires}. ${help.expires === "Never" ? "Leave the date empty." : "Enter the date 60 days after you made the token."}` : ""}
+              {fb ? " Each Facebook Page has its own Page token: Page 1 uses the \"Meta Page Token\" credential (also used by Instagram), Page 2 uses \"Meta Page Token 2\"." : ""}
+            </p>
           </div>
         }
       >
@@ -112,7 +127,7 @@ function AccountsTab({ accounts, pending, run }: { accounts: Account[]; pending:
           <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead className="bg-slate-50/70 text-left text-xs font-medium text-slate-500">
-                <tr><th className="px-6 py-2.5">Account</th><th className="px-3 py-2.5">ID</th><th className="px-3 py-2.5">Token expires</th><th className="px-3 py-2.5">Active</th><th className="px-6 py-2.5" /></tr>
+                <tr><th className="px-6 py-2.5">Account</th><th className="px-3 py-2.5">ID</th><th className="px-3 py-2.5">Token (n8n credential)</th><th className="px-3 py-2.5">Token expires</th><th className="px-3 py-2.5">Active</th><th className="px-6 py-2.5" /></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {accounts.map((a) => <AccountRow key={a.id} a={a} pending={pending} run={run} />)}
@@ -128,14 +143,15 @@ function AccountsTab({ accounts, pending, run }: { accounts: Account[]; pending:
         {/* Rows share the panel height evenly, so the panel never has an empty bottom */}
         <ul className="flex h-full flex-col divide-y divide-slate-100">
           {API_PLATFORMS.map((p) => {
-            const on = accounts.some((a) => a.platform === p.id && a.is_active);
+            const count = accounts.filter((a) => a.platform === p.id && a.is_active).length;
+            const on = count > 0;
             return (
               <li key={p.id} className="flex flex-1 items-center gap-3 px-6 py-3.5">
                 <PlatformIcon platform={p.id} size={30} rounded="rounded-[9px]" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] font-semibold text-slate-900">{platformLabel(p.id)}</span>
-                    {on && <span className="chip bg-emerald-50 text-emerald-700"><Icon name="check" size={10} strokeWidth={3} /> Connected</span>}
+                    {on && <span className="chip bg-emerald-50 text-emerald-700"><Icon name="check" size={10} strokeWidth={3} /> {count > 1 ? `${count} connected` : "Connected"}</span>}
                   </div>
                   <p className="mt-0.5 break-words font-mono text-[11px] text-slate-500">{p.where}</p>
                   <p className="mt-0.5 text-[11px] text-slate-400">Token: {p.expires === "Never" ? "never expires" : "expires every 60 days"}</p>
@@ -153,9 +169,9 @@ function AccountRow({ a, pending, run }: { a: Account; pending: boolean; run: Ru
   const [expires, setExpires] = useState(toDateInput(a.token_expires_at));
   const changed = expires !== toDateInput(a.token_expires_at);
   const days = a.token_expires_at ? Math.ceil((new Date(a.token_expires_at).getTime() - Date.now()) / 864e5) : null;
-  const save = (patch: Partial<Pick<Account, "token_expires_at" | "is_active">>) => run(() => upsertAccount({
+  const save = (patch: Partial<Pick<Account, "token_expires_at" | "is_active" | "n8n_credential_name">>) => run(() => upsertAccount({
     id: a.id, platform: a.platform, display_name: a.display_name, external_id: a.external_id ?? "",
-    token_expires_at: a.token_expires_at, is_active: a.is_active, ...patch,
+    token_expires_at: a.token_expires_at, is_active: a.is_active, n8n_credential_name: a.n8n_credential_name, ...patch,
   }));
   return (
     <tr className={a.is_active ? "" : "opacity-60"}>
@@ -169,6 +185,16 @@ function AccountRow({ a, pending, run }: { a: Account; pending: boolean; run: Ru
         </span>
       </td>
       <td className="px-3 py-3 font-mono text-xs text-slate-600">{a.external_id}</td>
+      <td className="px-3 py-3">
+        {a.platform === "facebook" ? (
+          <select className="input w-44 py-1.5" value={fbToken(a)} disabled={pending} aria-label="Page token credential in n8n"
+            onChange={(e) => save({ n8n_credential_name: e.target.value })}>
+            {FB_TOKENS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        ) : (
+          <span className="whitespace-nowrap text-xs text-slate-500">{credentialOf(a)}</span>
+        )}
+      </td>
       <td className="px-3 py-3">
         <div className="flex items-center gap-2">
           <input className="input w-40 py-1.5" type="date" value={expires} disabled={pending} aria-label="Token expires"

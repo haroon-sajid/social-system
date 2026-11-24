@@ -18,7 +18,8 @@ const strList = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string =>
  *   title, master_text (or "text"), topic, content_type, tags[]
  *   media[]: { public_url, mime_type } for files already online (https), or
  *            { data_base64, mime_type, filename? } to upload a file (max 20 MB each, 10 files)
- *   variants[]: { platform, body, hashtags[], link_url, title (reddit), group_target_ids[], use_media }
+ *   variants[]: { platform, body, hashtags[], link_url, title (reddit), group_target_ids[], use_media,
+ *                 account_ids[] (facebook: which Pages, ids from /context accounts; left out = every Page) }
  *   Shortcut instead of variants: platforms[] plus hashtags[] and link_url. Every platform then gets
  *   master_text, the link, and as many hashtags as it allows.
  */
