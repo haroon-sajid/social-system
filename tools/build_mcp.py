@@ -25,7 +25,9 @@ def mcp_path():
 MCP_PATH = mcp_path()
 w = WF("Social 0 - MCP Server (Claude)")
 
-w.add("MCP Server", *T_MCP, {"path": MCP_PATH}, (600, 0), extra={"webhookId": MCP_PATH})
+# Header auth: Claude's connector sends x-social-hub-key with every request (credential "Claude MCP Key")
+w.add("MCP Server", *T_MCP, {"authentication": "headerAuth", "path": MCP_PATH}, (600, 0),
+      creds=("httpHeaderAuth", "Claude MCP Key"), extra={"webhookId": MCP_PATH})
 
 
 def tool(name, desc, params, pos):
@@ -103,8 +105,9 @@ w.add("Note", *T_STICKY, {"content": (
     "## Claude MCP Server\n"
     "Claude can read rules, create and edit DRAFTS, and read analytics.\n"
     "Claude can NOT publish. Publishing only happens from the dashboard.\n\n"
-    "Connect in Claude: Settings > Connectors > Add custom connector > paste the Production URL of the MCP Server node.\n"
-    "Keep the URL private: the random path is the key."), "height": 240, "width": 460}, (0, -260))
+    "Connect in Claude: Settings > Connectors > Add custom connector > paste the Production URL of the MCP Server node,\n"
+    "choose No sign-in, and add the request header x-social-hub-key (value from the Claude MCP Key credential).\n"
+    "Keep the URL and the key private."), "height": 260, "width": 500}, (0, -280))
 
 w.dump("social-0-mcp-server.json")
 print("nodes", len(w.nodes))

@@ -58,7 +58,9 @@ rows = [
     ("Threads Token", "Query Auth", real(sec.get("threads_token", "")), "graph.threads.net"),
     ("LinkedIn Bearer", "Header Auth", real(sec.get("linkedin_token", "")), "api.linkedin.com, www.linkedin.com"),
     ("Gemini API Key", "Header Auth", real(sec.get("gemini_key", "")), "generativelanguage.googleapis.com"),
+    ("Claude MCP Key", "Header Auth", real(sec.get("mcp_header_key", "")), "(not needed: it protects the MCP Server)"),
 ]
+mcp_key = sec.get("mcp_header_key", "") if real(sec.get("mcp_header_key", "")) else TODO
 
 supa_json = json.dumps({"headers": {"apikey": service if real(service) else TODO,
                                     "Authorization": f"Bearer {service if real(service) else TODO}"}}, indent=2)
@@ -123,7 +125,14 @@ Type **Header Auth**. From aistudio.google.com > Get API key.
 - Name: `x-goog-api-key`
 - Value: `{val("gemini_key")}`
 
-## Claude connector URL (Social 0)
+## 7. Claude MCP Key ({status(real(sec.get("mcp_header_key", "")))})
+
+Type **Header Auth**. Social 0's MCP Server node requires it; Claude's connector sends the same header.
+
+- Name: `x-social-hub-key`
+- Value: `{mcp_key}`
+
+## Claude connector (Social 0)
 
 After importing and activating Social 0, its MCP Server node shows the Production URL. It ends with:
 
@@ -131,7 +140,14 @@ After importing and activating Social 0, its MCP Server node shows the Productio
 /mcp/{mcp_path}
 ```
 
-Paste the full URL in Claude: Settings > Connectors > Add custom connector. Treat it like a password.
+In Claude: Settings > Connectors > Add custom connector.
+
+1. URL: the full Production URL above.
+2. Authentication: **No sign-in**.
+3. Request headers > Add header:
+   - Name: `x-social-hub-key`
+   - Value: `{mcp_key}`
+4. Click Add. Treat the URL and the key like passwords.
 """
 
 with open(OUT, "w", encoding="utf-8", newline="\n") as f:
