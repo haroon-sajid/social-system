@@ -58,7 +58,7 @@ rows = [
     ("Threads Token", "Query Auth", real(sec.get("threads_token", "")), "graph.threads.net"),
     ("LinkedIn Bearer", "Header Auth", real(sec.get("linkedin_token", "")), "api.linkedin.com, www.linkedin.com"),
     ("Gemini API Key", "Header Auth", real(sec.get("gemini_key", "")), "generativelanguage.googleapis.com"),
-    ("Claude MCP Bearer", "Bearer Auth", real(sec.get("mcp_header_key", "")), "(not needed: it protects the MCP Server)"),
+    ("Claude MCP Key", "Header Auth", real(sec.get("mcp_header_key", "")), "(not needed: it protects the MCP Server)"),
 ]
 mcp_key = sec.get("mcp_header_key", "") if real(sec.get("mcp_header_key", "")) else TODO
 
@@ -125,12 +125,13 @@ Type **Header Auth**. From aistudio.google.com > Get API key.
 - Name: `x-goog-api-key`
 - Value: `{val("gemini_key")}`
 
-## 7. Claude MCP Bearer ({status(real(sec.get("mcp_header_key", "")))})
+## 7. Claude MCP Key ({status(real(sec.get("mcp_header_key", "")))})
 
-Type **Bearer Auth**. Social 0's MCP Server node (Authentication: Bearer Auth) requires it;
-Claude's connector sends the same key as `Authorization: Bearer <key>`.
+Type **Header Auth**. Social 0's MCP Server node (Authentication: Header Auth) requires it;
+Claude's connector sends the same header. (Claude only allows approved header names; x-api-key is one.)
 
-- Bearer Token: `{mcp_key}`
+- Name: `x-api-key`
+- Value: `{mcp_key}`
 
 ## Claude connector (Social 0)
 
@@ -144,8 +145,8 @@ In Claude: Settings > Connectors > Add custom connector.
 
 1. URL: the full Production URL above.
 2. Authentication: **No sign-in**.
-3. Request headers > Add header > choose **Authorization** (Claude only accepts approved header names):
-   - Value: `Bearer {mcp_key}` (if the box already shows "Bearer", paste only the key)
+3. Request headers > Add header > choose **x-api-key** from the list (Claude only accepts approved header names):
+   - Value: `{mcp_key}`
 4. Click Add. Treat the URL and the key like passwords.
 """
 
