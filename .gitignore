@@ -2,6 +2,11 @@
 __pycache__/
 *.pyc
 
+# n8n secrets: the MCP path is the key to your Claude connector
+tools/secrets.local.json
+n8n/social-0-mcp-server.json
+n8n/CREDENTIALS.local.md
+
 # Secrets and local settings (dashboard/.gitignore covers the dashboard too)
 .env
 .env.local

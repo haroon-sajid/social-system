@@ -62,7 +62,7 @@
           },
           "conditions": [
             {
-              "id": "e50ef27d-8f72-4551-82a3-7c82882f70f7",
+              "id": "3be6416b-1ef0-5469-85fb-5a31ff279582",
               "leftValue": "={{ $json.published_count }}",
               "operator": {
                 "type": "number",

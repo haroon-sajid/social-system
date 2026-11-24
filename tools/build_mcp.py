@@ -1,6 +1,28 @@
+import json
+import os
+import uuid
 from n8nlib import *
 
-MCP_PATH = "social-mcp-bf9d96ee-50b0-452d-b47e-166b2fcec0b7"
+# The MCP path is the key to your Claude connector, so it never goes into git.
+# It comes from N8N_MCP_PATH, or tools/secrets.local.json (git-ignored, created with a new random path if missing).
+SECRETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "secrets.local.json")
+
+
+def mcp_path():
+    if os.environ.get("N8N_MCP_PATH"):
+        return os.environ["N8N_MCP_PATH"]
+    data = {}
+    if os.path.exists(SECRETS):
+        with open(SECRETS, encoding="utf-8") as f:
+            data = json.load(f)
+    if not data.get("mcp_path"):
+        data["mcp_path"] = f"social-mcp-{uuid.uuid4()}"
+        with open(SECRETS, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    return data["mcp_path"]
+
+
+MCP_PATH = mcp_path()
 w = WF("Social 0 - MCP Server (Claude)")
 
 w.add("MCP Server", *T_MCP, {"path": MCP_PATH}, (600, 0), extra={"webhookId": MCP_PATH})

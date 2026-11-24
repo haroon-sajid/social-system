@@ -94,7 +94,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "f5e8c769-4b6b-44d7-bb6b-91c40910e7b6",
+                    "id": "261d1e7e-69d4-5edd-bc36-922907f7bbc6",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -118,7 +118,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "4f51c427-2ee2-4b6e-a90f-cb3455862b1e",
+                    "id": "1aac3439-383e-5c9b-ae0f-bf6c835f29d3",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -142,7 +142,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "8d654aa5-516a-477a-961f-b75557c5aa5b",
+                    "id": "a0ba1133-2fac-5306-b9a5-1fcd6b3a385d",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -166,7 +166,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "d87bb25f-9c3d-48fa-8011-721517b32e20",
+                    "id": "a0fc87c7-3d1b-5ed9-a42b-f124d221535b",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -418,7 +418,7 @@
           },
           "conditions": [
             {
-              "id": "08b166fb-7361-41d7-9173-508abc2e8aef",
+              "id": "15ac6c77-e6fc-591f-83bd-44a3b2b9f4a5",
               "leftValue": "={{ $json.image_url }}",
               "operator": {
                 "type": "string",

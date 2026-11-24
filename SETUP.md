@@ -55,6 +55,11 @@ When you finish, you have: Facebook Page token + Page ID, Instagram ID, Threads 
 
 ## Step 2. n8n credentials (names must match exactly)
 
+Run `python tools/build_credentials_sheet.py`. It writes `n8n/CREDENTIALS.local.md` (git-ignored) with every credential below,
+already filled in where the value is known (Supabase Service Key, Publish Webhook Secret). Add social tokens to
+`tools/secrets.local.json` as you get them (`meta_page_token`, `threads_token`, `linkedin_token`, `gemini_key`) and run it again.
+Credentials live only in n8n (encrypted), never inside the workflow files: the workflows point to them by these names.
+
 | Credential name | Type | Fields | Allowed domain |
 | --- | --- | --- | --- |
 | Supabase Service Key | Custom Auth | `{"headers":{"apikey":"SERVICE_ROLE_KEY","Authorization":"Bearer SERVICE_ROLE_KEY"}}` | `qpmsrznvleogzjnovsmw.supabase.co` |
@@ -73,10 +78,13 @@ The `service_role` key is in Supabase: Project Settings, API Keys. Keep it secre
 
 ## Step 4. Import workflows
 
-1. n8n: Workflows, Import from File, import the 4 files in `n8n/`.
-2. Open each one. If a node shows a credential warning, pick the credential with the same name.
-3. Activate all 4.
-4. Copy two Production URLs:
+1. Create the 6 credentials from Step 2 **first**, so the imported workflows connect to them automatically.
+2. n8n: Workflows, Create workflow, then the ⋯ menu, **Import from File**. Do this for each of the 4 files in `n8n/`.
+   `social-0-mcp-server.json` is not in git (it holds the secret Claude connector path): on a fresh copy run `python tools/build_mcp.py` to create it.
+3. Open each one. If a node shows a credential warning, pick the credential with the same name.
+4. Social 2 and Social 3: ⋯ menu, **Settings**, check **Timezone** is `Asia/Karachi` (or set `GENERIC_TIMEZONE=Asia/Karachi` on the n8n server), so they run at 3:15 AM and Monday 9:10 AM Pakistan time.
+5. Activate all 4.
+6. Copy two Production URLs:
    * Social 0, MCP Server node (for Claude)
    * Social 1, Publish Webhook node (for the dashboard). It ends with `/webhook/social-publish`. Do not use the `/webhook-test/` URL.
 

@@ -58,7 +58,7 @@
           },
           "conditions": [
             {
-              "id": "c2e5e0d0-9da4-45b0-b640-33d9a5ad6755",
+              "id": "dcb20695-1d27-5aa0-8f4a-b130108bda99",
               "leftValue": "={{ $json.variant_id }}",
               "operator": {
                 "type": "string",
@@ -96,7 +96,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "5a1efcb9-7aee-4adc-a2d0-55b67f25122a",
+                    "id": "712060b0-5d1a-5c2b-a258-67de698bccd6",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -120,7 +120,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "d6552230-c4e6-4067-be05-bf9bb53460ec",
+                    "id": "ebd340dd-f370-5200-b1b6-994cb0cbd774",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -144,7 +144,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "b509a8ab-188a-4f4f-9b9e-36627721e93c",
+                    "id": "951b78b5-bf16-547d-8046-a63e7a534bc5",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -328,7 +328,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "fb8bbe65-9dbe-4433-b64b-9594c2536c68",
+                    "id": "6d73f26d-f3c1-5b2a-b9aa-f5db38bd4518",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -352,7 +352,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "71707e33-1f3f-461b-9e86-fdf41248be5b",
+                    "id": "19108d60-aeaa-5426-b06d-ccd25ef835f9",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -376,7 +376,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "b59d3611-44f2-4fd0-b65c-3027b97a0b6e",
+                    "id": "d89159de-4ae6-548c-a5d7-791d2ef45527",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",
@@ -400,7 +400,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "bec73ba1-cc06-4c6b-bf42-1f515516276f",
+                    "id": "3a86b355-05ff-596f-ab71-afee16c08298",
                     "leftValue": "={{ $json.platform }}",
                     "operator": {
                       "type": "string",

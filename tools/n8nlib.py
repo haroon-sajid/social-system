@@ -111,9 +111,15 @@ def code(js, mode="runOnceForAllItems"):
     return p
 
 
+_cond_n = 0
+
+
 def cond(left, op_type, operation, right=None, single=False):
+    # Stable ids (same input, same id), so rebuilding does not change the JSON
+    global _cond_n
+    _cond_n += 1
     c = {
-        "id": str(uuid.uuid4()),
+        "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"cond/{_cond_n}/{left}/{op_type}/{operation}/{right}")),
         "leftValue": left,
         "operator": {"type": op_type, "operation": operation},
     }
