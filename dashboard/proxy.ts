@@ -8,6 +8,15 @@ export async function proxy(request: NextRequest) {
   // The Claude API checks its own key (SOCIAL_HUB_API_KEY), never a login cookie
   if (request.nextUrl.pathname.startsWith("/api/claude")) return NextResponse.next();
 
+  // Missing Supabase settings would crash every page with a bare 500, so say what is wrong instead
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    return new NextResponse(
+      "Social Hub is not configured yet.\n\nSet NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your host's " +
+      "environment variables (Vercel: Project, Settings, Environment Variables), then redeploy.",
+      { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } },
+    );
+  }
+
   // Login turned off (local only): let every page through, and skip the login page
   if (AUTH_DISABLED) {
     if (!request.nextUrl.pathname.startsWith("/login")) return NextResponse.next();

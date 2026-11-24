@@ -1,0 +1,14 @@
+# Python cache (created when the tools/ scripts run)
+__pycache__/
+*.pyc
+
+# Secrets and local settings (dashboard/.gitignore covers the dashboard too)
+.env
+.env.local
+.env.*.local
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
