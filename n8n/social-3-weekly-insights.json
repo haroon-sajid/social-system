@@ -1,0 +1,318 @@
+{
+  "name": "Social 3 - Weekly Insights",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 9,
+              "triggerAtMinute": 10
+            }
+          ]
+        }
+      },
+      "id": "90789b7b-53ce-52c7-a2c9-87e22caf2822",
+      "name": "Monday 9:10 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/rpc/get_performance_summary",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_days: 28 }) }}",
+        "options": {}
+      },
+      "id": "b39406aa-63dd-5fa0-bac8-efe389a723ac",
+      "name": "Get Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e50ef27d-8f72-4551-82a3-7c82882f70f7",
+              "leftValue": "={{ $json.published_count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "rightValue": 3
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "4925a045-ec51-5672-88af-ea2f95a5c11b",
+      "name": "Enough Data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst s = $input.first().json;\nconst prompt = `You are a senior social media strategist. Below is 28 days of performance data for one creator\n(AI automation and full-stack engineering content, audience in Pakistan and worldwide, times are Pakistan time).\nFind what works and what does not. Be specific and use the numbers. Then give 5 concrete post ideas for next week.\nEach idea must name the platform, content type, best posting hour (0 to 23 Pakistan time), why it should work based on\nthe data, and a ready-to-use example post written for that platform. Plain simple English. No emojis.\n\nDATA:\n${JSON.stringify(s)}`;\nconst schema = {\n  type: 'OBJECT',\n  properties: {\n    summary: { type: 'STRING' },\n    suggestions: { type: 'ARRAY', items: { type: 'OBJECT', properties: {\n      title: { type: 'STRING' }, platform: { type: 'STRING' }, content_type: { type: 'STRING' },\n      best_hour_pkt: { type: 'INTEGER' }, why: { type: 'STRING' }, example_post: { type: 'STRING' } },\n      required: ['title', 'platform', 'why', 'example_post'] } },\n  },\n  required: ['summary', 'suggestions'],\n};\nreturn [{ json: { request: {\n  contents: [{ role: 'user', parts: [{ text: prompt }] }],\n  generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.4 },\n} } }];\n"
+      },
+      "id": "b84dd997-b462-549b-bb2f-9afe50247c4e",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "f259ccd7-26c4-5ec8-a49b-0d3783bcd472",
+      "name": "Ask Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Gemini API Key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst r = $input.first().json;\nconst text = r.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';\nlet parsed;\ntry { parsed = JSON.parse(text); } catch (e) { throw new Error('Gemini did not return valid JSON: ' + text.slice(0, 300)); }\nconst end = new Date();\nconst start = new Date(end.getTime() - 28 * 864e5);\nreturn [{ json: { period_start: start.toISOString().slice(0, 10), period_end: end.toISOString().slice(0, 10),\n  summary: parsed.summary, suggestions: parsed.suggestions || [] } }];\n"
+      },
+      "id": "dd23cea4-3dc9-5fde-94fb-7ead63520f4e",
+      "name": "Parse Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        -100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/insights",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "770289ec-9b9e-574a-8439-1f4b5649d832",
+      "name": "Save Insight",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        -100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst e = $json.error ?? $json;\nconst msg = typeof e === 'string' ? e : (e.message || JSON.stringify(e));\nreturn [{ json: { platform: 'gemini', kind: 'insights',\n  message: 'Weekly insights failed: ' + String(msg).slice(0, 500) } }];\n"
+      },
+      "id": "0cbfc31e-3c61-5321-9933-e6d3a206c101",
+      "name": "Gemini Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/rpc/raise_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_platform: $json.platform, p_kind: $json.kind, p_message: $json.message }) }}",
+        "options": {}
+      },
+      "id": "5a37a3b9-5e8f-5835-a1e6-6248d539e1fa",
+      "name": "Raise Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Monday 9:10 AM": {
+      "main": [
+        [
+          {
+            "node": "Get Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Summary": {
+      "main": [
+        [
+          {
+            "node": "Enough Data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enough Data?": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Ask Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Gemini": {
+      "main": [
+        [
+          {
+            "node": "Parse Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Answer": {
+      "main": [
+        [
+          {
+            "node": "Save Insight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Failed": {
+      "main": [
+        [
+          {
+            "node": "Raise Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Karachi"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

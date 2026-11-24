@@ -1,0 +1,915 @@
+{
+  "name": "Social 2 - Daily Analytics and Token Check",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 3,
+              "triggerAtMinute": 15
+            }
+          ]
+        }
+      },
+      "id": "e9e0c58e-b671-5b09-a391-34cce79cbc45",
+      "name": "Daily 3:15 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/rpc/list_metric_targets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_days: 30 }) }}",
+        "options": {}
+      },
+      "id": "4aa9bdf2-7213-589d-b9ba-6ccdaa0cf262",
+      "name": "Get Targets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c2e5e0d0-9da4-45b0-b640-33d9a5ad6755",
+              "leftValue": "={{ $json.variant_id }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "d674d7b1-aed4-5cad-947d-5bc1618ffc96",
+      "name": "Has Target?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5a1efcb9-7aee-4adc-a2d0-55b67f25122a",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "facebook"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "facebook"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d6552230-c4e6-4067-be05-bf9bb53460ec",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "instagram"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "instagram"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b509a8ab-188a-4f4f-9b9e-36627721e93c",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "threads"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "threads"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f7c96ba0-3632-529e-81d6-018389c876f5",
+      "name": "Route Metrics",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        660,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.platform_post_id }}?fields=reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0),shares",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "id": "f610304c-cad1-5c57-a267-af36400b017d",
+      "name": "FB Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -50
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.platform_post_id }}/insights?metric=views,reach,likes,comments,shares,saved",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "id": "335c7ab6-d8ac-5f9f-9d9c-d03b46bdfec7",
+      "name": "IG Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        100
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.threads.net/v1.0/{{ $json.platform_post_id }}/insights?metric=views,likes,replies,reposts,quotes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "id": "388e5990-4cb0-577d-8ddb-a4e5e39c4597",
+      "name": "Threads Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        250
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Threads Token"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst t = $('Has Target?').item.json;\nconst r = $json;\nif (r.error) return { json: { skip: true, variant_id: t.variant_id, error: String(r.error.message || r.error) } };\nconst row = { variant_id: t.variant_id, raw: r };\nif (t.platform === 'facebook') {\n  row.likes = r.reactions?.summary?.total_count ?? null;\n  row.comments = r.comments?.summary?.total_count ?? null;\n  row.shares = r.shares?.count ?? 0;\n} else {\n  const m = {};\n  for (const d of (r.data || [])) m[d.name] = d.values?.[0]?.value ?? d.total_value?.value ?? null;\n  if (t.platform === 'instagram') Object.assign(row, { views: m.views, reach: m.reach, likes: m.likes,\n    comments: m.comments, shares: m.shares, saves: m.saved });\n  if (t.platform === 'threads') Object.assign(row, { views: m.views, likes: m.likes, comments: m.replies,\n    shares: (m.reposts || 0) + (m.quotes || 0) });\n}\nreturn { json: row };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "20dbba6e-195f-54a3-8a6b-15fda9a894ef",
+      "name": "Normalize Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => !r.skip);\nreturn [{ json: { rows, skipped: $input.all().length - rows.length } }];\n"
+      },
+      "id": "68a6ffcc-34ba-58b3-b036-7e78b07ce645",
+      "name": "Collect Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/rpc/upsert_metrics",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_rows: $json.rows }) }}",
+        "options": {}
+      },
+      "id": "8532c38a-716e-52de-8975-9134842ab570",
+      "name": "Save Metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/accounts?is_active=eq.true&select=platform,external_id,display_name,token_expires_at",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "eb237551-f39a-5f28-a5e0-4aa23b50efa5",
+      "name": "Get Accounts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        600
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "fb8bbe65-9dbe-4433-b64b-9594c2536c68",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "facebook"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "facebook"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "71707e33-1f3f-461b-9e86-fdf41248be5b",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "instagram"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "instagram"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b59d3611-44f2-4fd0-b65c-3027b97a0b6e",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "threads"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "threads"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "bec73ba1-cc06-4c6b-bf42-1f515516276f",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "linkedin"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "linkedin"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b2c979b-8eb7-5f04-95c8-3087403e2acd",
+      "name": "Route Accounts",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.external_id }}?fields=id,name",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "id": "2ec76f8c-f164-5fd6-b867-9188a546cdf5",
+      "name": "Check FB Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        450
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.external_id }}?fields=id,username",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "id": "b7574f19-0cb3-550c-ab31-182f30fe4bca",
+      "name": "Check IG Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        600
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://graph.threads.net/v1.0/me?fields=id,username",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "id": "059d9bec-b3e4-5f37-b31e-a94f24ec5dd5",
+      "name": "Check Threads Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        750
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Threads Token"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.linkedin.com/v2/userinfo",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "02d639ee-a406-5560-bd93-093bb9022500",
+      "name": "Check LinkedIn Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "LinkedIn Bearer"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst a = $('Get Accounts').item.json;\nreturn { json: { platform: a.platform, kind: 'token' } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "da805e02-e1ee-58ca-bdeb-65a8de35da98",
+      "name": "Token OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        550
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst a = $('Get Accounts').item.json;\nconst e = $json.error ?? $json;\nconst msg = typeof e === 'string' ? e : [e.message, e.description].filter(Boolean).join(' | ');\nreturn { json: { platform: a.platform, kind: 'token',\n  message: `${a.platform} (${a.display_name}) token check failed: ${msg || 'unknown error'}. Renew the token in n8n credentials.` } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "f7af5713-5626-5b98-bbc3-af66921ae09c",
+      "name": "Token Bad",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/rpc/resolve_alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_platform: $json.platform, p_kind: $json.kind }) }}",
+        "options": {}
+      },
+      "id": "04e1505e-c1a9-52a4-92d8-a29a5d244357",
+      "name": "Resolve Token Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        550
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/rpc/raise_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_platform: $json.platform, p_kind: $json.kind, p_message: $json.message }) }}",
+        "options": {}
+      },
+      "id": "68fa9618-c7ad-5fb6-86f2-ea7ed4765c46",
+      "name": "Raise Token Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        800
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst soon = Date.now() + 7 * 864e5;\nreturn $input.all().map(i => i.json)\n  .filter(a => a.token_expires_at && new Date(a.token_expires_at).getTime() < soon)\n  .map(a => ({ json: { platform: a.platform, kind: 'token_expiry',\n    message: `${a.platform} (${a.display_name}) token expires on ${String(a.token_expires_at).slice(0, 10)}. Renew it before then.` } }));\n"
+      },
+      "id": "4852fa8f-a8d8-55be-a969-901ecfdccea3",
+      "name": "Expiring Soon",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1050
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Daily Analytics and Token Check\nPulls likes, comments, shares, views for posts published in the last 30 days (Facebook, Instagram, Threads).\nChecks every token and raises a dashboard alert if one fails or expires within 7 days.\nLinkedIn personal post analytics are not available on the free API.",
+        "height": 220,
+        "width": 440
+      },
+      "id": "f3880adc-340f-5f3e-837f-aa0f3052c352",
+      "name": "Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -260
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 3:15 AM": {
+      "main": [
+        [
+          {
+            "node": "Get Targets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Targets": {
+      "main": [
+        [
+          {
+            "node": "Has Target?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Target?": {
+      "main": [
+        [
+          {
+            "node": "Route Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Metrics": {
+      "main": [
+        [
+          {
+            "node": "FB Stats",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG Insights",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Threads Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Stats": {
+      "main": [
+        [
+          {
+            "node": "Normalize Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Insights": {
+      "main": [
+        [
+          {
+            "node": "Normalize Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Insights": {
+      "main": [
+        [
+          {
+            "node": "Normalize Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Metrics": {
+      "main": [
+        [
+          {
+            "node": "Collect Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Rows": {
+      "main": [
+        [
+          {
+            "node": "Save Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Accounts": {
+      "main": [
+        [
+          {
+            "node": "Route Accounts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Expiring Soon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Accounts": {
+      "main": [
+        [
+          {
+            "node": "Check FB Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check IG Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Threads Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check LinkedIn Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check FB Token": {
+      "main": [
+        [
+          {
+            "node": "Token OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Token Bad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check IG Token": {
+      "main": [
+        [
+          {
+            "node": "Token OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Token Bad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Threads Token": {
+      "main": [
+        [
+          {
+            "node": "Token OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Token Bad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check LinkedIn Token": {
+      "main": [
+        [
+          {
+            "node": "Token OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Token Bad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token OK": {
+      "main": [
+        [
+          {
+            "node": "Resolve Token Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Bad": {
+      "main": [
+        [
+          {
+            "node": "Raise Token Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expiring Soon": {
+      "main": [
+        [
+          {
+            "node": "Raise Token Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Karachi",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -1,0 +1,1005 @@
+{
+  "name": "Social 1 - One Click Publish",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "social-publish",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "11129403-7e95-51d9-9ff0-672b1e056c8e",
+      "name": "Publish Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Publish Webhook Secret"
+        }
+      },
+      "webhookId": "ec422467-bf0b-5518-b9bd-bb945c7af5f8"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/rpc/start_publish",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_variant_id: $json.body.variant_id }) }}",
+        "options": {}
+      },
+      "id": "2bb70257-a1be-5843-8001-4bf09a0d4f1d",
+      "name": "Start Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nfunction readErr(raw) {\n  const e = raw?.error ?? raw ?? {};\n  if (typeof e === 'string') return e;\n  let detail = e.description;\n  try {\n    const j = typeof detail === 'string' ? JSON.parse(detail) : detail;\n    detail = j?.error?.error_user_msg || j?.error?.message || j?.message || j?.error_description || detail;\n  } catch (_) {}\n  return [detail, e.message].filter(Boolean).join(' | ').slice(0, 1500) || 'Unknown error';\n}\n\nreturn [{ json: { ok: false, error: readErr($input.first().json) } }];\n"
+      },
+      "id": "7d705e6d-f481-5952-9211-e24201251c16",
+      "name": "Start Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 409
+        }
+      },
+      "id": "8c1fc550-2db2-5b7d-a0e3-17ff09f915c6",
+      "name": "Reply Not Started",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f5e8c769-4b6b-44d7-bb6b-91c40910e7b6",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "facebook"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "facebook"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "4f51c427-2ee2-4b6e-a90f-cb3455862b1e",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "instagram"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "instagram"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "8d654aa5-516a-477a-961f-b75557c5aa5b",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "threads"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "threads"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d87bb25f-9c3d-48fa-8011-721517b32e20",
+                    "leftValue": "={{ $json.platform }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "linkedin"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "linkedin"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "49160b54-8877-5fe6-952c-6e6a2c8bbe35",
+      "name": "Route Platform",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.account_id }}/{{ $json.image_url ? 'photos' : 'feed' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.image_url ? { url: $json.image_url, message: $json.text } : Object.assign({ message: $json.text }, $json.link_url ? { link: $json.link_url } : {})) }}",
+        "options": {}
+      },
+      "id": "a35bfd10-84dc-51eb-a9a7-3fc08cfd478b",
+      "name": "Facebook Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        0
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.account_id }}/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_url: $json.image_url, caption: $json.text }) }}",
+        "options": {}
+      },
+      "id": "245835c7-b4e4-5f15-8898-4408f2e7710f",
+      "name": "Instagram Create",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        200
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "ae8d9d94-da1b-57fc-927c-4e11d561813c",
+      "name": "Instagram Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        920,
+        200
+      ],
+      "webhookId": "b88ca1a0-846a-5e60-95d5-65adf3826cf2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v25.0/{{ $('Start Publish').first().json.account_id }}/media_publish",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ creation_id: $json.id }) }}",
+        "options": {}
+      },
+      "id": "13edc2de-aadb-5527-8cfa-3a7f977c03b3",
+      "name": "Instagram Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        200
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 4000
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.id }}?fields=permalink",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "id": "c978df90-f4e3-5a6c-a669-d8ed1284dca0",
+      "name": "Instagram Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        150
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Meta Page Token"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.threads.net/v1.0/{{ $json.account_id }}/threads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.image_url ? { media_type: 'IMAGE', image_url: $json.image_url, text: $json.text } : { media_type: 'TEXT', text: $json.text }) }}",
+        "options": {}
+      },
+      "id": "8786dd69-cea4-52e9-98f5-e79d81b64b41",
+      "name": "Threads Create",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        400
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Threads Token"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "699f1823-c299-5d41-826c-176a2d56d293",
+      "name": "Threads Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        920,
+        400
+      ],
+      "webhookId": "0e02aab5-618e-577d-a3cb-ffb8b4a1a598"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.threads.net/v1.0/{{ $('Start Publish').first().json.account_id }}/threads_publish",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ creation_id: $json.id }) }}",
+        "options": {}
+      },
+      "id": "8c54b254-7227-5cd6-ad53-8a1cfc02e491",
+      "name": "Threads Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        400
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Threads Token"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 4000
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.threads.net/v1.0/{{ $json.id }}?fields=permalink",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "id": "577832b9-efa1-544e-be77-d3f3177d1339",
+      "name": "Threads Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        380
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Threads Token"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "08b166fb-7361-41d7-9173-508abc2e8aef",
+              "leftValue": "={{ $json.image_url }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "b1038203-3ba4-5c6b-8838-c7cbb60cd5bc",
+      "name": "LinkedIn Has Image?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        650
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/images?action=initializeUpload",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "LinkedIn-Version",
+              "value": "202609"
+            },
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ initializeUploadRequest: { owner: $json.li_author } }) }}",
+        "options": {}
+      },
+      "id": "094d9baf-8fc4-5af6-92d5-bbc4ae674f62",
+      "name": "LinkedIn Init Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        550
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "LinkedIn Bearer"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Start Publish').first().json.image_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "5cf7185e-bf37-53fd-9cfa-63ca26e8f414",
+      "name": "LinkedIn Get Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        550
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $('LinkedIn Init Upload').first().json.value.uploadUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data"
+      },
+      "id": "7186b2d6-39ea-52e9-a58b-0c581ec8cdbc",
+      "name": "LinkedIn Upload Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        550
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "LinkedIn Bearer"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "LinkedIn-Version",
+              "value": "202609"
+            },
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ author: $('Start Publish').first().json.li_author, commentary: $('Start Publish').first().json.li_commentary, visibility: 'PUBLIC', distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] }, lifecycleState: 'PUBLISHED', isReshareDisabledByAuthor: false }, $('LinkedIn Init Upload').isExecuted ? { content: { media: { id: $('LinkedIn Init Upload').first().json.value.image } } } : {})) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "07a43706-58f5-5668-9585-10271b1ff354",
+      "name": "LinkedIn Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "LinkedIn Bearer"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst job = $('Start Publish').first().json;\nconst r = $input.first().json;\nlet id = null, url = null;\nif (job.platform === 'facebook') { id = String(r.post_id || r.id); url = `https://www.facebook.com/${id}`; }\nif (job.platform === 'instagram' || job.platform === 'threads') {\n  // The id comes from the publish step; the link step may have failed (then there is no url, nothing else changes)\n  const pub = $(job.platform === 'instagram' ? 'Instagram Publish' : 'Threads Publish').first().json;\n  id = String(pub.id);\n  url = typeof r.permalink === 'string' ? r.permalink : null;\n}\nif (job.platform === 'linkedin') {\n  const h = r.headers || {};\n  id = h['x-restli-id'] || h['X-RestLi-Id'] || null;\n  url = id ? `https://www.linkedin.com/feed/update/${id}/` : null;\n}\nreturn [{ json: { variant_id: job.variant_id, success: true, platform_post_id: id, url, error: null } }];\n"
+      },
+      "id": "deb1c228-8dd1-573d-8cb2-ef220b83f9cb",
+      "name": "Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nfunction readErr(raw) {\n  const e = raw?.error ?? raw ?? {};\n  if (typeof e === 'string') return e;\n  let detail = e.description;\n  try {\n    const j = typeof detail === 'string' ? JSON.parse(detail) : detail;\n    detail = j?.error?.error_user_msg || j?.error?.message || j?.message || j?.error_description || detail;\n  } catch (_) {}\n  return [detail, e.message].filter(Boolean).join(' | ').slice(0, 1500) || 'Unknown error';\n}\n\nconst job = $('Start Publish').first().json;\nreturn [{ json: { variant_id: job.variant_id, success: false, platform_post_id: null, url: null,\n  error: `${job.platform}: ${readErr($input.first().json)}` } }];\n"
+      },
+      "id": "0616a3d8-6c8f-5267-859a-baeba832b251",
+      "name": "Build Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qpmsrznvleogzjnovsmw.supabase.co/rest/v1/rpc/finish_publish",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_variant_id: $json.variant_id, p_success: $json.success, p_platform_post_id: $json.platform_post_id, p_platform_post_url: $json.url, p_error: $json.error }) }}",
+        "options": {}
+      },
+      "id": "b7c7016c-f2ae-5f99-8858-be91a382c83c",
+      "name": "Save Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase Service Key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 4000
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Success').isExecuted ? { ok: true, url: $('Success').first().json.url } : { ok: false, error: $('Build Error').first().json.error }) }}",
+        "options": {}
+      },
+      "id": "2d8f9c99-885c-5177-aaa0-b8d6c8dbed86",
+      "name": "Reply Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## One Click Publish\nThe dashboard sends one version id. Supabase checks it, locks it (no double posts) and returns the ready text.\nThis workflow posts it and replies with the link or the exact error.\nSupports text plus 1 image. Videos are posted by hand.",
+        "height": 200,
+        "width": 420
+      },
+      "id": "5ddc388a-10a2-507f-9b4a-119575bd8241",
+      "name": "Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Publish Webhook": {
+      "main": [
+        [
+          {
+            "node": "Start Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Publish": {
+      "main": [
+        [
+          {
+            "node": "Route Platform",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Failed": {
+      "main": [
+        [
+          {
+            "node": "Reply Not Started",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Platform": {
+      "main": [
+        [
+          {
+            "node": "Facebook Post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Instagram Create",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Threads Create",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LinkedIn Has Image?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram Create": {
+      "main": [
+        [
+          {
+            "node": "Instagram Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram Wait": {
+      "main": [
+        [
+          {
+            "node": "Instagram Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Create": {
+      "main": [
+        [
+          {
+            "node": "Threads Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Wait": {
+      "main": [
+        [
+          {
+            "node": "Threads Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Has Image?": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn Init Upload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LinkedIn Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Init Upload": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn Get Image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Get Image": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn Upload Image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Upload Image": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn Post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram Publish": {
+      "main": [
+        [
+          {
+            "node": "Instagram Link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Publish": {
+      "main": [
+        [
+          {
+            "node": "Threads Link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook Post": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram Link": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads Link": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Post": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success": {
+      "main": [
+        [
+          {
+            "node": "Save Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Error": {
+      "main": [
+        [
+          {
+            "node": "Save Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Result": {
+      "main": [
+        [
+          {
+            "node": "Reply Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Karachi",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
